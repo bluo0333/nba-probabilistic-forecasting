@@ -1,12 +1,12 @@
 # NBA Probabilistic Forecasting Platform
 
 An end-to-end NBA game outcome forecasting system that ingests historical league data (1946–present),
-engineers rolling team-level features, trains calibrated probabilistic models,
+engineers rolling team level features, trains calibrated probabilistic models,
 and serves win probability forecasts via a lightweight web application.
 
 ## Goals
-- Build a production-style data pipeline for large-scale sports data
-- Forecast NBA game outcomes using probabilistic models (not binary predictions)
+- Build a production style data pipeline for large-scale sports data
+- Forecast NBA game outcomes using probabilistic models
 - Evaluate models using backtesting, calibration, and proper scoring rules
 - Deploy results in a lightweight, reproducible web application
 
