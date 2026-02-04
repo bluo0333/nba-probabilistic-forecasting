@@ -1,0 +1,1 @@
+-- Database schema for NBA analytics tables
