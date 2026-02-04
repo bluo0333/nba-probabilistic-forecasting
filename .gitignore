@@ -1,0 +1,63 @@
+# Python
+
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.env
+.venv/
+venv/
+env/
+
+# Jupyter / Notebooks
+
+.ipynb_checkpoints/
+
+# Data
+
+data/raw/
+data/processed/
+data/artifacts/
+*.parquet
+*.csv
+*.duckdb
+*.db
+*.sqlite
+
+
+# Models and Outputs
+
+models/
+*.pkl
+*.joblib
+
+
+# Logs and Cache
+
+logs/
+.cache/
+
+
+# Frameworks
+
+.streamlit/
+__pycache__/
+
+# OS / Editor
+
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+
+# Testing / Coverage
+
+.coverage
+htmlcov/
+pytest_cache/
+
+
+# Docker
+
+*.log
