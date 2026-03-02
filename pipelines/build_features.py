@@ -1,0 +1,205 @@
+from pathlib import Path
+import duckdb
+import pandas as pd
+import numpy as np
+
+
+def main():
+    repo_root = Path(__file__).resolve().parents[1]
+    db_path = repo_root / "data" / "nba.duckdb"
+
+    conn = duckdb.connect(str(db_path))
+
+    print("Loading base game data...")
+    games = conn.execute("""
+        SELECT
+            game_id,
+            game_date,
+            team_id_home,
+            team_id_away,
+            home_win
+        FROM model_base
+        ORDER BY game_date
+    """).df()
+
+    #=============================================
+    # Build MOV-Adjusted Elo
+
+    INITIAL_ELO = 1500
+    K = 20
+    HOME_ADVANTAGE = 100
+
+    elo_ratings = {}
+    home_elo_pre = []
+    away_elo_pre = []
+
+    print("Computing MOV-adjusted Elo ratings...")
+
+    # Needs point differential
+    games_full = conn.execute("""
+        SELECT
+            game_id,
+            game_date,
+            season_id,
+            team_id_home,
+            team_id_away,
+            home_win,
+            pts_home,
+            pts_away
+        FROM model_base
+        ORDER BY game_date
+    """).df()
+
+    print("Computing MOV-adjusted Elo ratings with offseason regression...")
+
+
+    # offseason strength retention
+
+    CARRYOVER = 0.75
+
+    current_season = None
+
+    for _, row in games_full.iterrows():
+
+        season = row["season_id"]
+
+        # Detect season change
+        if current_season is not None and season != current_season:
+            for team in elo_ratings:
+                elo_ratings[team] = (
+                    CARRYOVER * elo_ratings[team] +
+                    (1 - CARRYOVER) * INITIAL_ELO
+                )
+
+        current_season = season
+
+        home = row["team_id_home"]
+        away = row["team_id_away"]
+
+        if home not in elo_ratings:
+            elo_ratings[home] = INITIAL_ELO
+        if away not in elo_ratings:
+            elo_ratings[away] = INITIAL_ELO
+
+        R_home = elo_ratings[home]
+        R_away = elo_ratings[away]
+
+        home_elo_pre.append(R_home)
+        away_elo_pre.append(R_away)
+
+        expected_home = 1 / (1 + 10 ** ((R_away - (R_home + HOME_ADVANTAGE)) / 400))
+        actual_home = row["home_win"]
+
+        point_diff = abs(row["pts_home"] - row["pts_away"])
+
+        mov_multiplier = (
+            np.log(point_diff + 1) *
+            (2.2 / ((R_home - R_away) * 0.001 + 2.2))
+        )
+
+        elo_ratings[home] = R_home + K * mov_multiplier * (actual_home - expected_home)
+        elo_ratings[away] = R_away + K * mov_multiplier * ((1 - actual_home) - (1 - expected_home))
+
+    games_full["home_elo_pre"] = home_elo_pre
+    games_full["away_elo_pre"] = away_elo_pre
+    games_full["elo_diff"] = games_full["home_elo_pre"] - games_full["away_elo_pre"]
+
+
+    #=============================================
+    # Load Rolling Feature Data
+
+    print("Loading rolling feature data...")
+    df = conn.execute("SELECT * FROM game_features_clean").df()
+
+    # Merge MOV-adjusted Elo
+    print("Merging MOV-adjusted Elo...")
+    df = df.merge(
+        games_full[["game_id", "home_elo_pre", "away_elo_pre", "elo_diff"]],
+        on="game_id",
+        how="inner"
+    )
+
+
+    #=============================================
+    # Rest Day Features
+
+    print("Computing rest day features...")
+
+    team_games = conn.execute("""
+        SELECT
+            game_id,
+            game_date,
+            team_id,
+            is_home
+        FROM team_game_long
+        ORDER BY team_id, game_date
+    """).df()
+
+    team_games["prev_game_date"] = (
+        team_games.groupby("team_id")["game_date"].shift(1)
+    )
+
+    team_games["rest_days"] = (
+        team_games["game_date"] - team_games["prev_game_date"]
+    ).dt.days
+
+    home_rest = team_games[["game_id", "team_id", "rest_days"]].rename(
+        columns={
+            "team_id": "team_id_home",
+            "rest_days": "home_rest_days"
+        }
+    )
+
+    away_rest = team_games[["game_id", "team_id", "rest_days"]].rename(
+        columns={
+            "team_id": "team_id_away",
+            "rest_days": "away_rest_days"
+        }
+    )
+
+    df = df.merge(home_rest, on=["game_id", "team_id_home"], how="left")
+    df = df.merge(away_rest, on=["game_id", "team_id_away"], how="left")
+
+    df["rest_diff"] = df["home_rest_days"] - df["away_rest_days"]
+
+    df["home_b2b"] = (df["home_rest_days"] <= 1).astype(int)
+    df["away_b2b"] = (df["away_rest_days"] <= 1).astype(int)
+    df["b2b_diff"] = df["home_b2b"] - df["away_b2b"]
+
+    #=============================================
+    # Differential Features
+
+    df["home_net_last5"] = (
+        df["home_avg_pts_for_last5"] -
+        df["home_avg_pts_against_last5"]
+    )
+
+    df["away_net_last5"] = (
+        df["away_avg_pts_for_last5"] -
+        df["away_avg_pts_against_last5"]
+    )
+
+    df["net_diff_last5"] = df["home_net_last5"] - df["away_net_last5"]
+
+    df["win_pct_diff_last5"] = (
+        df["home_win_pct_last5"] -
+        df["away_win_pct_last5"]
+    )
+
+    print("Dropping NaNs...")
+    df = df.dropna()
+
+    print("Saving final_features table...")
+    conn.register("features_temp", df)
+
+    conn.execute("""
+        CREATE OR REPLACE TABLE final_features AS
+        SELECT *
+        FROM features_temp
+    """)
+
+    print("Feature pipeline complete.")
+
+
+if __name__ == "__main__":
+    main()
