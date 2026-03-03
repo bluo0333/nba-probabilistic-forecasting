@@ -22,7 +22,7 @@ The current model combines:
 
 All features computed strictly using past information to avoid leakage.
 
-## Out of Sample Performance (2018–2023)
+## Current Out of Sample Performance (2018 - 2023)
 
 - **Log Loss:** 0.633  
 - **Brier Score:** 0.221  
