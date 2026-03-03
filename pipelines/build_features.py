@@ -167,6 +167,86 @@ def main():
     df["b2b_diff"] = df["home_b2b"] - df["away_b2b"]
 
     #=============================================
+    # Pace-Adjusted Efficiency Features
+
+    print("Computing pace-adjusted efficiency features...")
+
+    pace_games = conn.execute("""
+        SELECT
+            game_id,
+            game_date,
+            team_id_home,
+            team_id_away,
+            pts_home,
+            pts_away,
+            fga_home,
+            fta_home,
+            oreb_home,
+            tov_home,
+            fga_away,
+            fta_away,
+            oreb_away,
+            tov_away
+        FROM game
+        ORDER BY game_date
+    """).df()
+
+    pace_games["possessions"] = 0.5 * (
+        (pace_games["fga_home"] + 0.44 * pace_games["fta_home"] - pace_games["oreb_home"] + pace_games["tov_home"]) +
+        (pace_games["fga_away"] + 0.44 * pace_games["fta_away"] - pace_games["oreb_away"] + pace_games["tov_away"])
+    )
+
+    home_eff_long = pace_games[["game_id", "game_date", "team_id_home", "pts_home", "pts_away", "possessions"]].rename(
+        columns={
+            "team_id_home": "team_id",
+            "pts_home": "points_for",
+            "pts_away": "points_against"
+        }
+    )
+
+    away_eff_long = pace_games[["game_id", "game_date", "team_id_away", "pts_away", "pts_home", "possessions"]].rename(
+        columns={
+            "team_id_away": "team_id",
+            "pts_away": "points_for",
+            "pts_home": "points_against"
+        }
+    )
+
+    team_eff = pd.concat([home_eff_long, away_eff_long], ignore_index=True)
+    team_eff = team_eff.sort_values(["team_id", "game_date", "game_id"])
+
+    grouped_eff = team_eff.groupby("team_id")
+
+    team_eff["pf_last10"] = grouped_eff["points_for"].transform(
+        lambda s: s.shift(1).rolling(window=10, min_periods=5).sum()
+    )
+    team_eff["pa_last10"] = grouped_eff["points_against"].transform(
+        lambda s: s.shift(1).rolling(window=10, min_periods=5).sum()
+    )
+    team_eff["poss_last10"] = grouped_eff["possessions"].transform(
+        lambda s: s.shift(1).rolling(window=10, min_periods=5).sum()
+    )
+
+    team_eff["ortg_last10"] = 100 * team_eff["pf_last10"] / team_eff["poss_last10"]
+    team_eff["drtg_last10"] = 100 * team_eff["pa_last10"] / team_eff["poss_last10"]
+    team_eff["netrtg_last10"] = team_eff["ortg_last10"] - team_eff["drtg_last10"]
+
+    team_eff.loc[team_eff["poss_last10"] <= 0, ["ortg_last10", "drtg_last10", "netrtg_last10"]] = np.nan
+
+    home_eff = team_eff[["game_id", "team_id", "netrtg_last10"]].rename(
+        columns={"team_id": "team_id_home", "netrtg_last10": "home_netrtg_last10"}
+    )
+
+    away_eff = team_eff[["game_id", "team_id", "netrtg_last10"]].rename(
+        columns={"team_id": "team_id_away", "netrtg_last10": "away_netrtg_last10"}
+    )
+
+    df = df.merge(home_eff, on=["game_id", "team_id_home"], how="left")
+    df = df.merge(away_eff, on=["game_id", "team_id_away"], how="left")
+
+    df["netrtg_diff_last10"] = df["home_netrtg_last10"] - df["away_netrtg_last10"]
+
+    #=============================================
     # Differential Features
 
     df["home_net_last5"] = (
