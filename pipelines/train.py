@@ -27,7 +27,11 @@ def main():
         "elo_diff",
         "rest_diff",
         "b2b_diff",
-        "netrtg_diff_last10"
+        "netrtg_diff_last10",
+        "efg_diff_last10",
+        "tov_pct_diff_last10",
+        "orb_pct_diff_last10",
+        "ftr_diff_last10",
     ]
 
     X_train = train[features]

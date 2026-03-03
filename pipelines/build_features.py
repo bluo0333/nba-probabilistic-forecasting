@@ -35,7 +35,6 @@ def main():
 
     print("Computing MOV-adjusted Elo ratings...")
 
-    # Needs point differential
     games_full = conn.execute("""
         SELECT
             game_id,
@@ -51,7 +50,6 @@ def main():
     """).df()
 
     print("Computing MOV-adjusted Elo ratings with offseason regression...")
-
 
     # offseason strength retention
 
@@ -245,6 +243,151 @@ def main():
     df = df.merge(away_eff, on=["game_id", "team_id_away"], how="left")
 
     df["netrtg_diff_last10"] = df["home_netrtg_last10"] - df["away_netrtg_last10"]
+
+    #=============================================
+    # Rolling Four Factors Features
+
+    print("Computing rolling Four Factors features...")
+
+    four_factors_games = conn.execute("""
+        SELECT
+            game_id,
+            game_date,
+            team_id_home,
+            team_id_away,
+            fgm_home,
+            fg3m_home,
+            fga_home,
+            fta_home,
+            oreb_home,
+            tov_home,
+            dreb_home,
+            fgm_away,
+            fg3m_away,
+            fga_away,
+            fta_away,
+            oreb_away,
+            tov_away,
+            dreb_away
+        FROM game
+        ORDER BY game_date
+    """).df()
+
+    home_ff_long = four_factors_games[
+        [
+            "game_id",
+            "game_date",
+            "team_id_home",
+            "fgm_home",
+            "fg3m_home",
+            "fga_home",
+            "fta_home",
+            "oreb_home",
+            "tov_home",
+            "dreb_away",
+        ]
+    ].rename(
+        columns={
+            "team_id_home": "team_id",
+            "fgm_home": "fgm",
+            "fg3m_home": "fg3m",
+            "fga_home": "fga",
+            "fta_home": "fta",
+            "oreb_home": "oreb",
+            "tov_home": "tov",
+            "dreb_away": "opp_dreb",
+        }
+    )
+
+    away_ff_long = four_factors_games[
+        [
+            "game_id",
+            "game_date",
+            "team_id_away",
+            "fgm_away",
+            "fg3m_away",
+            "fga_away",
+            "fta_away",
+            "oreb_away",
+            "tov_away",
+            "dreb_home",
+        ]
+    ].rename(
+        columns={
+            "team_id_away": "team_id",
+            "fgm_away": "fgm",
+            "fg3m_away": "fg3m",
+            "fga_away": "fga",
+            "fta_away": "fta",
+            "oreb_away": "oreb",
+            "tov_away": "tov",
+            "dreb_home": "opp_dreb",
+        }
+    )
+
+    ff_long = pd.concat([home_ff_long, away_ff_long], ignore_index=True)
+    ff_long = ff_long.sort_values(["team_id", "game_date", "game_id"])
+
+    grouped_ff = ff_long.groupby("team_id")
+    rolling_sources = ["fgm", "fg3m", "fga", "fta", "oreb", "tov", "opp_dreb"]
+
+    for col in rolling_sources:
+        ff_long[f"{col}_last10"] = grouped_ff[col].transform(
+            lambda s: s.shift(1).rolling(window=10, min_periods=5).sum()
+        )
+
+    ff_long["efg_last10"] = (
+        ff_long["fgm_last10"] + 0.5 * ff_long["fg3m_last10"]
+    ) / ff_long["fga_last10"]
+
+    ff_long["tov_pct_last10"] = ff_long["tov_last10"] / (
+        ff_long["fga_last10"] + 0.44 * ff_long["fta_last10"] + ff_long["tov_last10"]
+    )
+
+    ff_long["orb_pct_last10"] = ff_long["oreb_last10"] / (
+        ff_long["oreb_last10"] + ff_long["opp_dreb_last10"]
+    )
+
+    ff_long["ftr_last10"] = ff_long["fta_last10"] / ff_long["fga_last10"]
+
+    ff_long.loc[ff_long["fga_last10"] <= 0, ["efg_last10", "ftr_last10"]] = np.nan
+    ff_long.loc[
+        (ff_long["fga_last10"] + 0.44 * ff_long["fta_last10"] + ff_long["tov_last10"]) <= 0,
+        "tov_pct_last10",
+    ] = np.nan
+    ff_long.loc[(ff_long["oreb_last10"] + ff_long["opp_dreb_last10"]) <= 0, "orb_pct_last10"] = np.nan
+
+    home_ff = ff_long[
+        ["game_id", "team_id", "efg_last10", "tov_pct_last10", "orb_pct_last10", "ftr_last10"]
+    ].rename(
+        columns={
+            "team_id": "team_id_home",
+            "efg_last10": "home_efg_last10",
+            "tov_pct_last10": "home_tov_pct_last10",
+            "orb_pct_last10": "home_orb_pct_last10",
+            "ftr_last10": "home_ftr_last10",
+        }
+    )
+
+    away_ff = ff_long[
+        ["game_id", "team_id", "efg_last10", "tov_pct_last10", "orb_pct_last10", "ftr_last10"]
+    ].rename(
+        columns={
+            "team_id": "team_id_away",
+            "efg_last10": "away_efg_last10",
+            "tov_pct_last10": "away_tov_pct_last10",
+            "orb_pct_last10": "away_orb_pct_last10",
+            "ftr_last10": "away_ftr_last10",
+        }
+    )
+
+    df = df.merge(home_ff, on=["game_id", "team_id_home"], how="left")
+    df = df.merge(away_ff, on=["game_id", "team_id_away"], how="left")
+
+    df["efg_diff_last10"] = df["home_efg_last10"] - df["away_efg_last10"]
+    df["tov_pct_diff_last10"] = df["home_tov_pct_last10"] - df["away_tov_pct_last10"]
+    df["orb_pct_diff_last10"] = df["home_orb_pct_last10"] - df["away_orb_pct_last10"]
+    df["ftr_diff_last10"] = df["home_ftr_last10"] - df["away_ftr_last10"]
 
     #=============================================
     # Differential Features
