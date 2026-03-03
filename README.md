@@ -1,23 +1,52 @@
-# NBA Probabilistic Forecasting Platform
+NBA Probabilistic Forecasting Platform
 
-An end-to-end NBA game outcome forecasting system that ingests historical league data (1946–present),
-engineers rolling team level features, trains calibrated probabilistic models,
-and serves win probability forecasts via a lightweight web application.
+This project builds an NBA game outcome forecasting system using historical league data (1946 - present). It ingests raw relational data, engineers team level features, trains probabilistic models, and produces win probability estimates for matchups.
+The focus is on building a reproducible analytics pipeline.
 
-## Goals
-- Build a production style data pipeline for large-scale sports data
-- Forecast NBA game outcomes using probabilistic models
-- Evaluate models using backtesting, calibration, and proper scoring rules
-- Deploy results in a lightweight, reproducible web application
+Modeling Approach
 
-## Data
-- Historical NBA games, teams, players, box scores, and play-by-play data
-- Source: Kaggle NBA relational database (updated daily)
+The current model combines:
 
-## Project Structure
-- `pipelines/`: data ingestion, feature engineering, model training, and backtesting
-- `sql/`: schema definitions, transformations, and analytical queries
-- `app/`: web interface for viewing forecasts and evaluation results
+Margin-of-victory adjusted Elo
+Home court advantage
+Offseason regression
+Rolling team form (last 5 games)
+Pace adjusted offensive & defensive efficiency
+Net rating differentials
+Win percentage differentials
+Fatigue features
+Rest days
+Back-to-back indicators
+Rest differential
+All features are computed strictly using past information to avoid leakage.
 
-## Status
-Project in progress - currently implementing data ingestion and feature engineering pipelines.
+Out-of-Sample Performance (2018–2023)
+
+Log Loss: 0.633
+Brier Score: 0.221
+Accuracy: 64.4%
+
+Baseline (always picking the home team):
+
+Accuracy: 56.5%
+
+The model improves winner prediction by ~8 percentage points over a naive strategy.
+
+Project Structure
+pipelines/
+    ingest.py
+    build_features.py
+    train.py
+
+app/
+    main.py
+
+models/
+    logistic_model.pkl
+
+data/
+    nba.duckdb
+Status
+
+Core modeling pipeline complete.
+Planning to expose predictions via API and build a lightweight web interface.
