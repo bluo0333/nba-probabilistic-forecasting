@@ -15,6 +15,13 @@ The current model combines:
   - Pace adjusted offensive & defensive efficiency
   - Net rating differentials
   - Win percentage differentials
+- **Pace adjusted strength (last 10 games)**
+  - Rolling net rating differential
+- **Rolling Four Factors (last 10 games)**
+  - Effective field goal percentage differential
+  - Turnover percentage differential
+  - Offensive rebound percentage differential
+  - Free throw rate differential
 - **Fatigue features**
   - Rest days
   - Back-to-back indicators
@@ -24,11 +31,12 @@ All features computed strictly using past information to avoid leakage.
 
 ## Current Out of Sample Performance (2018 - 2023)
 
-- **Log Loss:** 0.633  
-- **Brier Score:** 0.221  
+- **Log Loss:** 0.633
+- **Brier Score:** 0.221
 - **Accuracy:** 64.4%
 
 Baseline (always picking the home team):
+
 - Accuracy: 56.5%
 
 The model improves winner prediction by ~8 percentage points over a naive strategy.
@@ -36,18 +44,22 @@ The model improves winner prediction by ~8 percentage points over a naive strate
 ## Project Structure
 
 pipelines/
-- ingest.py  
-- build_features.py  
-- train.py  
+
+- ingest.py
+- build_features.py
+- train.py
 
 app/
-- main.py  
+
+- main.py
 
 models/
-- logistic_model.pkl  
+
+- logistic_model.pkl
 
 data/
-- nba.duckdb  
+
+- nba.duckdb
 
 ## Status
 
