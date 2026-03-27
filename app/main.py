@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from html import escape
 from pathlib import Path
 import sys
@@ -23,17 +24,24 @@ HOST = "127.0.0.1"
 PORT = 8000
 
 
-def load_teams() -> list[tuple[str, str]]:
+def team_logo_url(team_id: str) -> str:
+    return f"https://cdn.nba.com/logos/nba/{team_id}/global/L/logo.svg"
+
+
+def load_teams() -> list[dict[str, str]]:
     conn = duckdb.connect(str(DB_PATH))
     try:
         rows = conn.execute(
             """
-            SELECT abbreviation, full_name
+            SELECT id, abbreviation, full_name
             FROM team
             ORDER BY abbreviation
             """
         ).fetchall()
-        return [(str(abbrev), str(full_name)) for abbrev, full_name in rows]
+        return [
+            {"id": str(team_id), "abbreviation": str(abbrev), "full_name": str(full_name)}
+            for team_id, abbrev, full_name in rows
+        ]
     finally:
         conn.close()
 
@@ -78,6 +86,12 @@ def predict(home: str, away: str, game_date_text: str | None) -> dict[str, Any]:
         )
         return {
             "matchup": matchup,
+            "home_team_name": str(home_meta["full_name"]),
+            "away_team_name": str(away_meta["full_name"]),
+            "home_team_abbreviation": str(home_meta["abbreviation"]),
+            "away_team_abbreviation": str(away_meta["abbreviation"]),
+            "home_logo_url": team_logo_url(str(home_id)),
+            "away_logo_url": team_logo_url(str(away_id)),
             "game_date": str(game_date.date()),
             "home_rest_days": home_rest_days,
             "away_rest_days": away_rest_days,
@@ -92,6 +106,7 @@ def predict(home: str, away: str, game_date_text: str | None) -> dict[str, Any]:
 def render_page(
     *,
     team_options: str,
+    team_logo_lookup_json: str,
     home: str,
     away: str,
     game_date: str,
@@ -102,6 +117,16 @@ def render_page(
         result_html = f"""
         <section class="card result-card">
           <h2>Forecast Result</h2>
+          <div class="team-logos">
+            <div class="team-logo-card">
+              <img src="{escape(result["away_logo_url"])}" alt="{escape(result["away_team_name"])} logo" loading="lazy" />
+              <span>{escape(result["away_team_name"])} ({escape(result["away_team_abbreviation"])})</span>
+            </div>
+            <div class="team-logo-card">
+              <img src="{escape(result["home_logo_url"])}" alt="{escape(result["home_team_name"])} logo" loading="lazy" />
+              <span>{escape(result["home_team_name"])} ({escape(result["home_team_abbreviation"])})</span>
+            </div>
+          </div>
           <p><strong>Matchup:</strong> {escape(result["matchup"])}</p>
           <p><strong>Assumed game date:</strong> {escape(result["game_date"])}</p>
           <p><strong>Rest:</strong> Home {result["home_rest_days"]} days | Away {result["away_rest_days"]} days</p>
@@ -182,6 +207,16 @@ def render_page(
         display: grid;
         gap: 12px;
       }}
+      .team-field {{
+        display: grid;
+        gap: 8px;
+      }}
+      .team-input-wrap {{
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+      }}
       label {{
         font-size: 0.9rem;
         font-weight: 600;
@@ -193,6 +228,24 @@ def render_page(
         border-radius: 8px;
         padding: 10px 12px;
         font-size: 0.95rem;
+      }}
+      .logo-preview {{
+        width: 52px;
+        height: 52px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fbfdff;
+        display: grid;
+        place-items: center;
+      }}
+      .logo-preview img {{
+        width: 38px;
+        height: 38px;
+        object-fit: contain;
+        display: none;
+      }}
+      .logo-preview.has-logo img {{
+        display: block;
       }}
       button {{
         width: fit-content;
@@ -209,6 +262,32 @@ def render_page(
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
         margin: 14px 0;
+      }}
+      .team-logos {{
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin: 8px 0 14px;
+      }}
+      .team-logo-card {{
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px;
+        background: #fbfdff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 8px;
+      }}
+      .team-logo-card img {{
+        width: 72px;
+        height: 72px;
+        object-fit: contain;
+      }}
+      .team-logo-card span {{
+        font-size: 0.9rem;
+        font-weight: 600;
       }}
       .prob-grid > div {{
         border: 1px solid var(--line);
@@ -228,6 +307,9 @@ def render_page(
         background: #fff5f5;
       }}
       @media (max-width: 680px) {{
+        .team-logos {{
+          grid-template-columns: 1fr;
+        }}
         .prob-grid {{
           grid-template-columns: 1fr;
         }}
@@ -239,11 +321,21 @@ def render_page(
       <h1>NBA Probabilistic Forecaster</h1>
       <section class="card">
         <form method="get" action="/">
-          <label>Home Team
-            <input list="team-list" name="home" value="{escape(home)}" placeholder="e.g. IND or Indiana Pacers" required />
+          <label class="team-field">Home Team
+            <div class="team-input-wrap">
+              <input id="home-input" list="team-list" name="home" value="{escape(home)}" placeholder="e.g. IND or Indiana Pacers" required />
+              <div id="home-logo-preview" class="logo-preview" aria-hidden="true">
+                <img id="home-logo-img" alt="" loading="lazy" />
+              </div>
+            </div>
           </label>
-          <label>Away Team
-            <input list="team-list" name="away" value="{escape(away)}" placeholder="e.g. LAL or Los Angeles Lakers" required />
+          <label class="team-field">Away Team
+            <div class="team-input-wrap">
+              <input id="away-input" list="team-list" name="away" value="{escape(away)}" placeholder="e.g. LAL or Los Angeles Lakers" required />
+              <div id="away-logo-preview" class="logo-preview" aria-hidden="true">
+                <img id="away-logo-img" alt="" loading="lazy" />
+              </div>
+            </div>
           </label>
           <label>Game Date (optional)
             <input type="date" name="game_date" value="{escape(game_date)}" />
@@ -256,6 +348,46 @@ def render_page(
     <datalist id="team-list">
       {team_options}
     </datalist>
+    <script>
+      const TEAM_LOGO_LOOKUP = {team_logo_lookup_json};
+
+      function resolveTeamLogoUrl(inputValue) {{
+        const key = inputValue.trim().toLowerCase();
+        if (!key) return "";
+        const teamId = TEAM_LOGO_LOOKUP[key];
+        return teamId ? "https://cdn.nba.com/logos/nba/" + teamId + "/global/L/logo.svg" : "";
+      }}
+
+      function updateLogoPreview(inputId, previewId, imageId) {{
+        const input = document.getElementById(inputId);
+        const preview = document.getElementById(previewId);
+        const image = document.getElementById(imageId);
+        if (!input || !preview || !image) return;
+
+        const logoUrl = resolveTeamLogoUrl(input.value);
+        if (logoUrl) {{
+          image.src = logoUrl;
+          preview.classList.add("has-logo");
+        }} else {{
+          image.removeAttribute("src");
+          preview.classList.remove("has-logo");
+        }}
+      }}
+
+      function bindTeamPreview(inputId, previewId, imageId) {{
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        const refresh = function() {{
+          updateLogoPreview(inputId, previewId, imageId);
+        }};
+        input.addEventListener("input", refresh);
+        input.addEventListener("change", refresh);
+        refresh();
+      }}
+
+      bindTeamPreview("home-input", "home-logo-preview", "home-logo-img");
+      bindTeamPreview("away-input", "away-logo-preview", "away-logo-img");
+    </script>
   </body>
 </html>
 """
@@ -283,10 +415,16 @@ def application(environ: dict[str, Any], start_response: Any) -> list[bytes]:
             error = str(exc)
 
     team_options = "\n".join(
-        f'<option value="{escape(abbrev)}">{escape(full_name)}</option>' for abbrev, full_name in teams
+        f'<option value="{escape(team["abbreviation"])}">{escape(team["full_name"])}</option>' for team in teams
     )
+    team_logo_lookup: dict[str, str] = {}
+    for team in teams:
+        team_logo_lookup[team["abbreviation"].lower()] = team["id"]
+        team_logo_lookup[team["full_name"].lower()] = team["id"]
+    team_logo_lookup_json = json.dumps(team_logo_lookup, separators=(",", ":"))
     page = render_page(
         team_options=team_options,
+        team_logo_lookup_json=team_logo_lookup_json,
         home=home,
         away=away,
         game_date=game_date,
