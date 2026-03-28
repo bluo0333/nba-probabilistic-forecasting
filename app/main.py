@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 import json
+import math
 from html import escape
 from pathlib import Path
 import sys
@@ -40,6 +41,28 @@ EASTERN_CONFERENCE = {
     "TOR",
     "WAS",
 }
+PLAYER_FEATURES_PATH = REPO_ROOT / "data" / "player_features.csv"
+PLAYER_STATS_PATH = REPO_ROOT / "data" / "player_game_stats.csv"
+COMMON_PLAYER_INFO_PATH = REPO_ROOT / "data" / "raw" / "kaggle" / "csv" / "common_player_info.csv"
+PLAYER_PROP_MODEL_PATHS = {
+    "points": REPO_ROOT / "models" / "points_model.pkl",
+    "rebounds": REPO_ROOT / "models" / "rebounds_model.pkl",
+    "3ps": REPO_ROOT / "models" / "threes_model.pkl",
+}
+PLAYER_PROP_MEAN_COLUMN_CANDIDATES = {
+    "points": ["rolling_points_10", "points"],
+    "rebounds": ["rolling_rebounds_10", "rebounds"],
+    "3ps": ["rolling_3pm_10", "rolling_fg3m_10", "rolling_threes_10", "threes_made", "fg3m"],
+}
+PLAYER_PROP_STAT_COLUMN_CANDIDATES = {
+    "points": ["points", "pts"],
+    "rebounds": ["rebounds", "reb", "trb"],
+    "3ps": ["threes_made", "fg3m", "three_pointers_made", "three_pointers"],
+}
+PLAYER_PROP_DEFAULT_STD = {"points": 6.0, "rebounds": 3.0, "3ps": 1.5}
+PLAYER_PROP_TYPES = ("points", "rebounds", "3ps")
+PLAYER_PROP_LABELS = {"points": "Points", "rebounds": "Rebounds", "3ps": "3PM"}
+_PLAYER_PROP_CONTEXT: dict[str, Any] | None = None
 
 
 def team_logo_url(team_id: str) -> str:
@@ -156,6 +179,214 @@ def load_tonights_games(today: date | None = None) -> dict[str, Any]:
         }
     finally:
         conn.close()
+
+
+def normalize_name(value: str) -> str:
+    return str(value or "").strip().lower()
+
+
+def american_to_implied_probability(odds: float) -> float:
+    if odds == 0:
+        raise ValueError("Odds cannot be zero.")
+    if odds < 0:
+        return -odds / (-odds + 100.0)
+    return 100.0 / (odds + 100.0)
+
+
+def normal_cdf(value: float, mean: float, std_dev: float) -> float:
+    if std_dev <= 0:
+        return 1.0 if value >= mean else 0.0
+    z = (value - mean) / (std_dev * math.sqrt(2.0))
+    return 0.5 * (1.0 + math.erf(z))
+
+
+def pick_existing_column(df: pd.DataFrame, candidates: list[str]) -> str | None:
+    for column in candidates:
+        if column in df.columns:
+            return column
+    return None
+
+
+def _load_player_prop_context() -> dict[str, Any]:
+    global _PLAYER_PROP_CONTEXT
+    if _PLAYER_PROP_CONTEXT is not None:
+        return _PLAYER_PROP_CONTEXT
+
+    features_df: pd.DataFrame | None = None
+    stats_df: pd.DataFrame | None = None
+    models: dict[str, Any] = {}
+    player_names: set[str] = set()
+
+    if PLAYER_FEATURES_PATH.is_file():
+        features_df = pd.read_csv(PLAYER_FEATURES_PATH)
+        if "player_name" in features_df.columns:
+            features_df["player_name"] = features_df["player_name"].astype(str).str.strip()
+            features_df["player_name_norm"] = features_df["player_name"].map(normalize_name)
+            player_names.update(features_df["player_name"].dropna().tolist())
+        if "date" in features_df.columns:
+            features_df["date"] = pd.to_datetime(features_df["date"], errors="coerce")
+
+    if PLAYER_STATS_PATH.is_file():
+        stats_df = pd.read_csv(PLAYER_STATS_PATH)
+        if "player_name" in stats_df.columns:
+            stats_df["player_name"] = stats_df["player_name"].astype(str).str.strip()
+            stats_df["player_name_norm"] = stats_df["player_name"].map(normalize_name)
+            player_names.update(stats_df["player_name"].dropna().tolist())
+        if "date" in stats_df.columns:
+            stats_df["date"] = pd.to_datetime(stats_df["date"], errors="coerce")
+
+    if not player_names and COMMON_PLAYER_INFO_PATH.is_file():
+        info = pd.read_csv(COMMON_PLAYER_INFO_PATH, usecols=["display_first_last"])
+        values = info["display_first_last"].dropna().astype(str).str.strip()
+        player_names.update([name for name in values if name])
+
+    for prop_type, model_path in PLAYER_PROP_MODEL_PATHS.items():
+        if model_path.is_file():
+            try:
+                models[prop_type] = joblib.load(model_path)
+            except Exception:
+                continue
+
+    sorted_players = sorted(player_names)
+    name_map = {normalize_name(name): name for name in sorted_players}
+    _PLAYER_PROP_CONTEXT = {
+        "features_df": features_df,
+        "stats_df": stats_df,
+        "models": models,
+        "players": sorted_players,
+        "name_map": name_map,
+    }
+    return _PLAYER_PROP_CONTEXT
+
+
+def load_player_names() -> list[str]:
+    context = _load_player_prop_context()
+    return context["players"]
+
+
+def _latest_feature_row(features_df: pd.DataFrame, player_norm: str) -> pd.Series | None:
+    rows = features_df[features_df["player_name_norm"] == player_norm].copy()
+    if rows.empty:
+        return None
+    order_cols = [col for col in ["date", "game_id"] if col in rows.columns]
+    if order_cols:
+        rows = rows.sort_values(order_cols, ascending=True)
+    return rows.iloc[-1]
+
+
+def _predict_mean_from_model(model: Any, row: pd.Series) -> float | None:
+    feature_names = getattr(model, "feature_names_in_", None)
+    if feature_names is None:
+        feature_names = ["rolling_points_10", "rolling_assists_10", "rolling_rebounds_10", "rolling_minutes_10"]
+
+    values: dict[str, float] = {}
+    for feature_name in feature_names:
+        if feature_name not in row.index:
+            return None
+        value = row.get(feature_name)
+        if value is None or pd.isna(value):
+            return None
+        values[str(feature_name)] = float(value)
+
+    frame = pd.DataFrame([values], columns=list(feature_names))
+    return float(model.predict(frame)[0])
+
+
+def _extract_stat_series(stats_df: pd.DataFrame, player_norm: str, prop_type: str) -> pd.Series | None:
+    stat_col = pick_existing_column(stats_df, PLAYER_PROP_STAT_COLUMN_CANDIDATES[prop_type])
+    if stat_col is None:
+        return None
+    rows = stats_df[stats_df["player_name_norm"] == player_norm].copy()
+    if rows.empty:
+        return None
+    order_cols = [col for col in ["date", "game_id"] if col in rows.columns]
+    if order_cols:
+        rows = rows.sort_values(order_cols, ascending=True)
+    series = pd.to_numeric(rows[stat_col], errors="coerce").dropna()
+    if series.empty:
+        return None
+    return series
+
+
+def predict_player_prop(player: str, prop_type: str, side: str, line: float, odds: float) -> dict[str, Any]:
+    context = _load_player_prop_context()
+    prop_type_norm = str(prop_type).strip().lower()
+    side_norm = str(side).strip().lower()
+    if prop_type_norm not in PLAYER_PROP_TYPES:
+        raise ValueError("Line type must be one of: points, rebounds, 3ps.")
+    if side_norm not in {"over", "under"}:
+        raise ValueError("Side must be over or under.")
+
+    player_norm = normalize_name(player)
+    canonical_name = context["name_map"].get(player_norm)
+    if not canonical_name:
+        raise ValueError(f"Player '{player}' not found.")
+
+    features_df = context["features_df"]
+    stats_df = context["stats_df"]
+    models = context["models"]
+    predicted_mean: float | None = None
+    mean_source = ""
+
+    if features_df is not None:
+        latest_row = _latest_feature_row(features_df, player_norm)
+        if latest_row is not None:
+            model = models.get(prop_type_norm)
+            if model is not None:
+                predicted_mean = _predict_mean_from_model(model, latest_row)
+                if predicted_mean is not None:
+                    mean_source = "model"
+            if predicted_mean is None:
+                mean_col = pick_existing_column(features_df, PLAYER_PROP_MEAN_COLUMN_CANDIDATES[prop_type_norm])
+                if mean_col is not None:
+                    value = latest_row.get(mean_col)
+                    if value is not None and not pd.isna(value):
+                        predicted_mean = float(value)
+                        mean_source = f"rolling ({mean_col})"
+
+    player_series = None if stats_df is None else _extract_stat_series(stats_df, player_norm, prop_type_norm)
+    if predicted_mean is None and player_series is not None and len(player_series) > 0:
+        predicted_mean = float(player_series.tail(10).mean())
+        mean_source = "recent average (last 10)"
+
+    if predicted_mean is None:
+        raise ValueError(
+            "Could not compute this player prop yet. Missing player feature/stat data. "
+            "Run player ingestion/build/train pipelines first."
+        )
+
+    std_dev: float | None = None
+    if player_series is not None and len(player_series) >= 2:
+        std_dev = float(player_series.std(ddof=1))
+    if (std_dev is None or not math.isfinite(std_dev) or std_dev <= 0) and stats_df is not None:
+        global_col = pick_existing_column(stats_df, PLAYER_PROP_STAT_COLUMN_CANDIDATES[prop_type_norm])
+        if global_col is not None:
+            global_std = float(pd.to_numeric(stats_df[global_col], errors="coerce").dropna().std(ddof=1))
+            if math.isfinite(global_std) and global_std > 0:
+                std_dev = global_std
+
+    if std_dev is None or not math.isfinite(std_dev) or std_dev <= 0:
+        std_dev = PLAYER_PROP_DEFAULT_STD[prop_type_norm]
+
+    prob_over = float(1.0 - normal_cdf(line, predicted_mean, std_dev))
+    hit_probability = prob_over if side_norm == "over" else 1.0 - prob_over
+    implied_probability = float(american_to_implied_probability(odds))
+    edge = hit_probability - implied_probability
+
+    return {
+        "player": canonical_name,
+        "line_type": prop_type_norm,
+        "line_type_label": PLAYER_PROP_LABELS[prop_type_norm],
+        "side": side_norm,
+        "line": float(line),
+        "odds": float(odds),
+        "predicted_mean": predicted_mean,
+        "std_dev": std_dev,
+        "hit_probability": hit_probability,
+        "implied_probability": implied_probability,
+        "edge": edge,
+        "mean_source": mean_source or "fallback",
+    }
 
 
 def predict(home: str, away: str, game_date_text: str | None) -> dict[str, Any]:
@@ -309,7 +540,7 @@ def build_tonights_games_html(tonight_games: dict[str, Any]) -> str:
     games_html = "\n".join(game_cards) if game_cards else '<p class="slate-empty">No games available.</p>'
     note_html = f'<p class="slate-note">{escape(tonight_games["note"])}</p>' if tonight_games["note"] else ""
     return f"""
-    <section class="card slate-card">
+    <section class="section-block slate-block">
       <div class="slate-head">
         <h2>Tonight&apos;s Games</h2>
         <p>{escape(tonight_games["display_date"])}</p>
@@ -322,12 +553,87 @@ def build_tonights_games_html(tonight_games: dict[str, Any]) -> str:
     """
 
 
+def build_player_prop_section_html(
+    *,
+    player_options_html: str,
+    prop_input: dict[str, str],
+    prop_result: dict[str, Any] | None,
+    prop_error: str | None,
+) -> str:
+    if prop_result:
+        prop_result_html = f"""
+        <section class="prop-result">
+          <h3>Prop Probability Result</h3>
+          <p><strong>Player:</strong> {escape(prop_result["player"])}</p>
+          <p><strong>Market:</strong> {escape(prop_result["line_type_label"])} {escape(prop_result["side"].title())} {prop_result["line"]:.1f}</p>
+          <p><strong>Odds:</strong> {prop_result["odds"]:+.0f}</p>
+          <p><strong>Hit Probability:</strong> {prop_result["hit_probability"] * 100:.1f}%</p>
+          <p><strong>Implied Probability:</strong> {prop_result["implied_probability"] * 100:.1f}%</p>
+          <p><strong>Model Edge:</strong> {prop_result["edge"] * 100:+.1f}%</p>
+          <p><strong>Projection Mean:</strong> {prop_result["predicted_mean"]:.2f} (source: {escape(prop_result["mean_source"])})</p>
+        </section>
+        """
+    elif prop_error:
+        prop_result_html = f"""
+        <section class="prop-result prop-result-error">
+          <h3>Prop Probability Result</h3>
+          <p>{escape(prop_error)}</p>
+        </section>
+        """
+    else:
+        prop_result_html = """
+        <section class="prop-result">
+          <h3>Prop Probability Result</h3>
+          <p>Pick player + line details to estimate hit probability.</p>
+        </section>
+        """
+
+    return f"""
+    <section class="section-block prop-block">
+      <h2>Player Props</h2>
+      <form method="get" action="/" class="prop-form">
+        <label>Player
+          <input list="player-list" name="prop_player" value="{escape(prop_input["player"])}" placeholder="Select player" required />
+        </label>
+        <label>Line Type
+          <select name="prop_type">
+            <option value="points" {"selected" if prop_input["type"] == "points" else ""}>Points</option>
+            <option value="rebounds" {"selected" if prop_input["type"] == "rebounds" else ""}>Rebounds</option>
+            <option value="3ps" {"selected" if prop_input["type"] == "3ps" else ""}>3PM</option>
+          </select>
+        </label>
+        <label>Side
+          <select name="prop_side">
+            <option value="over" {"selected" if prop_input["side"] == "over" else ""}>Over</option>
+            <option value="under" {"selected" if prop_input["side"] == "under" else ""}>Under</option>
+          </select>
+        </label>
+        <label>Odds (American)
+          <input type="number" step="1" name="prop_odds" value="{escape(prop_input["odds"])}" placeholder="-110" required />
+        </label>
+        <label>Line
+          <input type="number" step="0.5" name="prop_line" value="{escape(prop_input["line"])}" placeholder="e.g. 24.5" required />
+        </label>
+        <button type="submit" class="prop-submit">Calculate Prop Probability</button>
+      </form>
+      {prop_result_html}
+    </section>
+    <datalist id="player-list">
+      {player_options_html}
+    </datalist>
+    """
+
+
 def render_page(
     *,
     teams: list[dict[str, str]],
     team_lookup_json: str,
     team_meta_by_id_json: str,
     tonight_games: dict[str, Any],
+    player_options_html: str,
+    prop_input: dict[str, str],
+    prop_result: dict[str, Any] | None,
+    prop_error: str | None,
     home: str,
     away: str,
     game_date: str,
@@ -336,7 +642,7 @@ def render_page(
 ) -> str:
     if result:
         result_html = f"""
-        <section class="card result-card">
+        <section class="section-block result-block">
           <h2>Forecast Result</h2>
           <div class="team-logos">
             <div class="team-logo-card">
@@ -380,14 +686,14 @@ def render_page(
         """
     elif error:
         result_html = f"""
-        <section class="card error-card">
+        <section class="section-block error-block">
           <h2>Could Not Generate Forecast</h2>
           <p>{escape(error)}</p>
         </section>
         """
     else:
         result_html = """
-        <section class="card result-card">
+        <section class="section-block result-block">
           <h2>Forecast Result</h2>
           <p>Enter a home team and away team to generate a matchup forecast.</p>
         </section>
@@ -406,6 +712,12 @@ def render_page(
         selected_value=away,
     )
     tonight_games_html = build_tonights_games_html(tonight_games)
+    player_prop_html = build_player_prop_section_html(
+        player_options_html=player_options_html,
+        prop_input=prop_input,
+        prop_result=prop_result,
+        prop_error=prop_error,
+    )
 
     return f"""<!doctype html>
 <html lang="en">
@@ -499,8 +811,18 @@ def render_page(
         font-size: 1.02rem;
         color: var(--muted);
       }}
-      .slate-card {{
-        margin-bottom: 16px;
+      .section-block {{
+        padding: 18px 0;
+        border-top: 1px solid var(--line);
+      }}
+      .section-block:last-of-type {{
+        border-bottom: 1px solid var(--line);
+      }}
+      .form-block {{
+        border-top-color: var(--line-strong);
+      }}
+      .slate-block {{
+        margin-bottom: 0;
       }}
       .slate-head {{
         display: flex;
@@ -532,9 +854,10 @@ def render_page(
         gap: 10px;
       }}
       .slate-game {{
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        background: linear-gradient(160deg, rgba(64, 28, 13, 0.95), rgba(38, 17, 9, 0.95));
+        border-left: 3px solid var(--accent-orange);
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        background: rgba(38, 17, 9, 0.72);
         padding: 10px;
       }}
       .slate-team {{
@@ -571,16 +894,6 @@ def render_page(
         margin: 0;
         color: var(--muted);
       }}
-      .card {{
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        padding: 18px;
-        box-shadow: var(--shadow);
-      }}
-      .card + .card {{
-        margin-top: 16px;
-      }}
       form {{
         display: grid;
         gap: 16px;
@@ -589,11 +902,22 @@ def render_page(
       #matchup-form > button[type="submit"] {{
         grid-column: 1 / -1;
       }}
+      .prop-form {{
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 12px;
+        align-items: end;
+      }}
+      .prop-form > label {{
+        display: grid;
+        gap: 6px;
+      }}
+      .prop-form > button {{
+        align-self: end;
+      }}
       .team-selector {{
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        background: linear-gradient(170deg, rgba(55, 24, 12, 0.92), rgba(33, 14, 8, 0.92));
-        padding: 14px;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        padding: 14px 0;
         content-visibility: auto;
         contain-intrinsic-size: 460px;
       }}
@@ -622,10 +946,10 @@ def render_page(
         gap: 12px;
       }}
       .conference-panel {{
-        border: 1px solid var(--line);
-        border-radius: 12px;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
         padding: 10px;
-        background: rgba(36, 16, 9, 0.8);
+        background: rgba(36, 16, 9, 0.45);
         content-visibility: auto;
         contain-intrinsic-size: 280px;
       }}
@@ -648,7 +972,7 @@ def render_page(
       }}
       .team-tile {{
         border: 1px solid var(--line);
-        border-radius: 10px;
+        border-radius: 2px;
         background: linear-gradient(160deg, rgba(79, 35, 16, 0.85), rgba(43, 19, 10, 0.95));
         padding: 8px 6px;
         cursor: pointer;
@@ -694,6 +1018,17 @@ def render_page(
         color: var(--text);
         background: rgba(40, 18, 10, 0.92);
       }}
+      input[type="number"],
+      input[list],
+      select {{
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 0.98rem;
+        color: var(--text);
+        background: rgba(40, 18, 10, 0.92);
+      }}
       button[type="submit"] {{
         width: fit-content;
         border: none;
@@ -712,6 +1047,25 @@ def render_page(
         transform: translateY(-1px);
         box-shadow: 0 12px 22px rgba(168, 63, 29, 0.62);
       }}
+      .prop-result {{
+        margin-top: 14px;
+        padding-top: 10px;
+        border-top: 1px solid var(--line);
+      }}
+      .prop-result h3 {{
+        margin: 0 0 8px;
+        font-family: "Oswald", "Roboto Condensed", sans-serif;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-size: 1.02rem;
+      }}
+      .prop-result p {{
+        margin: 4px 0;
+        color: #efd5bc;
+      }}
+      .prop-result-error p {{
+        color: #ffc29e;
+      }}
       .prob-grid {{
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -726,9 +1080,9 @@ def render_page(
       }}
       .team-logo-card {{
         border: 1px solid var(--line);
-        border-radius: 10px;
+        border-radius: 2px;
         padding: 12px;
-        background: linear-gradient(160deg, rgba(67, 29, 14, 0.92), rgba(35, 15, 9, 0.94));
+        background: rgba(67, 29, 14, 0.56);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -746,9 +1100,9 @@ def render_page(
       }}
       .prob-grid > div {{
         border: 1px solid var(--line);
-        border-radius: 10px;
+        border-radius: 2px;
         padding: 10px;
-        background: rgba(52, 24, 13, 0.92);
+        background: rgba(52, 24, 13, 0.56);
       }}
       .prob-grid span {{
         display: block;
@@ -760,8 +1114,8 @@ def render_page(
         font-family: "Oswald", "Roboto Condensed", sans-serif;
         color: #fff2de;
       }}
-      .result-card h2,
-      .error-card h2 {{
+      .result-block h2,
+      .error-block h2 {{
         margin-top: 0;
         margin-bottom: 10px;
         text-transform: uppercase;
@@ -769,10 +1123,10 @@ def render_page(
         font-family: "Oswald", "Roboto Condensed", sans-serif;
         font-size: 1.1rem;
       }}
-      .result-card p {{
+      .result-block p {{
         color: #efd5bc;
       }}
-      .error-card {{
+      .error-block {{
         border-color: rgba(202, 47, 47, 0.75);
         background: linear-gradient(160deg, rgba(97, 22, 16, 0.9), rgba(52, 12, 8, 0.95));
       }}
@@ -787,6 +1141,9 @@ def render_page(
           flex-direction: column;
           align-items: flex-start;
           gap: 4px;
+        }}
+        .prop-form {{
+          grid-template-columns: 1fr;
         }}
         .team-selector-head {{
           flex-direction: column;
@@ -815,12 +1172,11 @@ def render_page(
   <body>
     <main class="wrap">
       <header class="title-block">
-        <p class="kicker">NBA x Tech Forecast Lab</p>
         <h1>NBA Probabilistic Forecaster</h1>
         <p class="deck">Game-edge modeling powered by Elo, form, and four factors.</p>
       </header>
       {tonight_games_html}
-      <section class="card">
+      <section class="section-block form-block">
         <form id="matchup-form" method="get" action="/">
           {home_selector_html}
           {away_selector_html}
@@ -830,6 +1186,7 @@ def render_page(
           <button type="submit">Generate Forecast</button>
         </form>
       </section>
+      {player_prop_html}
       {result_html}
     </main>
     <script>
@@ -919,23 +1276,70 @@ def application(environ: dict[str, Any], start_response: Any) -> list[bytes]:
     home = params.get("home", [""])[0].strip()
     away = params.get("away", [""])[0].strip()
     game_date = params.get("game_date", [""])[0].strip()
+    prop_player = params.get("prop_player", [""])[0].strip()
+    prop_type = params.get("prop_type", ["points"])[0].strip().lower() or "points"
+    prop_side = params.get("prop_side", ["over"])[0].strip().lower() or "over"
+    prop_odds = params.get("prop_odds", ["-110"])[0].strip()
+    prop_line = params.get("prop_line", [""])[0].strip()
 
-    error = None
-    result = None
-    teams = []
-    tonight_games: dict[str, Any] = {"display_date": "", "source": "today", "note": None, "games": []}
+    matchup_error = None
+    matchup_result = None
+    prop_error = None
+    prop_result = None
+    teams: list[dict[str, str]] = []
+    player_names: list[str] = []
+    tonight_games: dict[str, Any] = {"display_date": "Tonight", "source": "today", "note": None, "games": []}
 
     try:
         teams = load_teams()
+    except Exception as exc:  # pragma: no cover - startup data guard
+        matchup_error = f"Could not load team list: {exc}"
+
+    try:
         tonight_games = load_tonights_games()
     except Exception as exc:  # pragma: no cover - startup data guard
-        error = f"Could not load team list: {exc}"
+        tonight_games = {
+            "display_date": "Tonight",
+            "source": "today",
+            "note": f"Could not load games: {exc}",
+            "games": [],
+        }
 
-    if home and away and error is None:
+    try:
+        player_names = load_player_names()
+    except Exception:
+        player_names = []
+
+    if home and away and matchup_error is None:
         try:
-            result = predict(home, away, game_date or None)
+            matchup_result = predict(home, away, game_date or None)
         except Exception as exc:
-            error = str(exc)
+            matchup_error = str(exc)
+
+    prop_input = {
+        "player": prop_player,
+        "type": prop_type if prop_type in PLAYER_PROP_TYPES else "points",
+        "side": prop_side if prop_side in {"over", "under"} else "over",
+        "odds": prop_odds,
+        "line": prop_line,
+    }
+    prop_submitted = any([prop_player, prop_line, prop_odds, "prop_type" in params, "prop_side" in params])
+    if prop_submitted:
+        if not prop_player or not prop_line or not prop_odds:
+            prop_error = "Enter player, line, and odds to calculate probability."
+        else:
+            try:
+                line_value = float(prop_line)
+                odds_value = float(prop_odds)
+                prop_result = predict_player_prop(
+                    prop_player,
+                    prop_input["type"],
+                    prop_input["side"],
+                    line_value,
+                    odds_value,
+                )
+            except Exception as exc:
+                prop_error = str(exc)
 
     team_lookup: dict[str, str] = {}
     team_meta_by_id: dict[str, dict[str, str]] = {}
@@ -948,16 +1352,23 @@ def application(environ: dict[str, Any], start_response: Any) -> list[bytes]:
         }
     team_lookup_json = json.dumps(team_lookup, separators=(",", ":"))
     team_meta_by_id_json = json.dumps(team_meta_by_id, separators=(",", ":"))
+    player_options_html = "\n".join(
+        f'<option value="{escape(name)}"></option>' for name in player_names
+    )
     page = render_page(
         teams=teams,
         team_lookup_json=team_lookup_json,
         team_meta_by_id_json=team_meta_by_id_json,
         tonight_games=tonight_games,
+        player_options_html=player_options_html,
+        prop_input=prop_input,
+        prop_result=prop_result,
+        prop_error=prop_error,
         home=home,
         away=away,
         game_date=game_date,
-        result=result,
-        error=error,
+        result=matchup_result,
+        error=matchup_error,
     )
     body = page.encode("utf-8")
     start_response(

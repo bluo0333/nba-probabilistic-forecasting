@@ -24,6 +24,7 @@ def load_player_stats(path: Path) -> pd.DataFrame:
         "points",
         "assists",
         "rebounds",
+        "threes_made",
         "team_id",
         "opponent_team_id",
     }
@@ -51,6 +52,9 @@ def add_rolling_features(df: pd.DataFrame) -> pd.DataFrame:
         lambda s: s.shift(1).rolling(window=10, min_periods=1).mean()
     )
     df["rolling_rebounds_10"] = grouped["rebounds"].transform(
+        lambda s: s.shift(1).rolling(window=10, min_periods=1).mean()
+    )
+    df["rolling_3pm_10"] = grouped["threes_made"].transform(
         lambda s: s.shift(1).rolling(window=10, min_periods=1).mean()
     )
     df["rolling_minutes_10"] = grouped["minutes"].transform(

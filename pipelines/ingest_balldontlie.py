@@ -91,6 +91,7 @@ def normalize_stat_row(item: dict[str, Any]) -> dict[str, Any] | None:
         "points": safe_int(item.get("pts")),
         "assists": safe_int(item.get("ast")),
         "rebounds": safe_int(item.get("reb")),
+        "threes_made": safe_int(item.get("fg3m")),
         "team_id": team_id,
         "opponent_team_id": opponent_team_id,
     }

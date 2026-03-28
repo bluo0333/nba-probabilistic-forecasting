@@ -26,6 +26,7 @@ MODEL_PATHS = {
     "points": REPO_ROOT / "models" / "points_model.pkl",
     "assists": REPO_ROOT / "models" / "assists_model.pkl",
     "rebounds": REPO_ROOT / "models" / "rebounds_model.pkl",
+    "3ps": REPO_ROOT / "models" / "threes_model.pkl",
 }
 
 OUTPUT_COLUMNS = [
@@ -58,6 +59,8 @@ def load_models() -> dict[str, Any]:
     models: dict[str, Any] = {}
     for stat, path in MODEL_PATHS.items():
         if not path.is_file():
+            if stat == "3ps":
+                continue
             raise FileNotFoundError(f"Model file not found: {path}")
         models[stat] = joblib.load(path)
     return models
@@ -107,9 +110,14 @@ def build_std_tables(stats_df: pd.DataFrame) -> tuple[dict[str, dict[str, float]
     frame = stats_df.copy()
     frame["player_name_norm"] = frame["player_name"].map(normalize_player_name)
     frame["pra"] = frame["points"] + frame["assists"] + frame["rebounds"]
+    if "threes_made" in frame.columns:
+        frame["3ps"] = frame["threes_made"]
 
     player_std: dict[str, dict[str, float]] = {}
-    for stat in ["points", "assists", "rebounds", "pra"]:
+    std_stats = ["points", "assists", "rebounds", "pra"]
+    if "3ps" in frame.columns:
+        std_stats.append("3ps")
+    for stat in std_stats:
         std_series = frame.groupby("player_name_norm")[stat].std(ddof=1)
         player_std[stat] = std_series.to_dict()
 
@@ -119,6 +127,8 @@ def build_std_tables(stats_df: pd.DataFrame) -> tuple[dict[str, dict[str, float]
         "rebounds": float(frame["rebounds"].std(ddof=1)),
         "pra": float(frame["pra"].std(ddof=1)),
     }
+    if "3ps" in frame.columns:
+        global_std["3ps"] = float(frame["3ps"].std(ddof=1))
     return player_std, global_std
 
 
@@ -142,12 +152,14 @@ def predict_stat_mean(models: dict[str, Any], features: pd.DataFrame, stat: str)
     """Predict expected value for one stat type."""
     if stat in {"points", "assists", "rebounds"}:
         return float(models[stat].predict(features)[0])
+    if stat == "3ps":
+        return float(models["3ps"].predict(features)[0])
     if stat == "pra":
         pts = float(models["points"].predict(features)[0])
         ast = float(models["assists"].predict(features)[0])
         reb = float(models["rebounds"].predict(features)[0])
         return pts + ast + reb
-    raise ValueError(f"Unsupported stat '{stat}'. Expected points/assists/rebounds/pra.")
+    raise ValueError(f"Unsupported stat '{stat}'. Expected points/assists/rebounds/3ps/pra.")
 
 
 def load_stats_for_std(path: Path) -> pd.DataFrame:
@@ -182,7 +194,7 @@ def main() -> None:
             print(f"Skipping row {idx}: invalid line/odds values.")
             continue
 
-        if stat not in {"points", "assists", "rebounds", "pra"}:
+        if stat not in {"points", "assists", "rebounds", "3ps", "pra"}:
             print(f"Skipping row {idx}: unsupported stat '{stat}'.")
             continue
 

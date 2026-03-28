@@ -22,6 +22,7 @@ TARGET_TO_MODEL_PATH = {
     "points": MODELS_DIR / "points_model.pkl",
     "assists": MODELS_DIR / "assists_model.pkl",
     "rebounds": MODELS_DIR / "rebounds_model.pkl",
+    "threes_made": MODELS_DIR / "threes_model.pkl",
 }
 
 
