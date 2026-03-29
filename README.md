@@ -65,6 +65,7 @@ End-to-end NBA analytics project for:
 - `predict_matchup.py`
 - `ingest_balldontlie.py`
 - `build_player_features.py`
+- `build_player_features_duckdb.py`
 - `train_player_model.py`
 - `predict_player_props.py`
 - `build_player_game_stats.py`
@@ -83,6 +84,10 @@ End-to-end NBA analytics project for:
 
 - `logistic_model.pkl` (game model)
 - player prop models (`points_model.pkl`, `assists_model.pkl`, `rebounds_model.pkl`, `threes_model.pkl`)
+
+`sql/`
+
+- `build_player_features.sql`
 
 ## Setup
 
@@ -165,6 +170,15 @@ Then build:
 
 ```powershell
 python pipelines/build_player_game_stats.py
+```
+
+## Build Leakage-Safe `player_features` in DuckDB
+
+From `player_game_stats`, create a model-ready `player_features` table with
+rolling/expanding windows that exclude the current game:
+
+```powershell
+python pipelines/build_player_features_duckdb.py
 ```
 
 ## Current Out-of-Sample Game Model Performance (2018-2023)
