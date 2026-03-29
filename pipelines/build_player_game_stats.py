@@ -115,21 +115,51 @@ player_metadata AS (
         position,
         CAST(team_id AS BIGINT) AS team_id
     FROM common_player_info
+),
+player_game_enriched AS (
+    SELECT
+        s.player_id,
+        s.game_id,
+        s.points,
+        s.rebounds,
+        s.assists,
+        COALESCE(m.player_name, p.full_name) AS player_name,
+        m.position,
+        m.team_id,
+        {order_game_date_expr} AS game_date
+    FROM aggregated_stats s
+    LEFT JOIN player_metadata m
+        ON s.player_id = m.player_id
+    LEFT JOIN player p
+        ON s.player_id = CAST(p.id AS BIGINT)
+    {game_join_clause}
 )
 SELECT
-    s.player_id,
-    s.game_id,
-    s.points,
-    s.rebounds,
-    s.assists,
-    COALESCE(m.player_name, p.full_name) AS player_name,
-    m.position,
-    m.team_id
-FROM aggregated_stats s
-LEFT JOIN player_metadata m
-    ON s.player_id = m.player_id
-LEFT JOIN player p
-    ON s.player_id = CAST(p.id AS BIGINT);
+    player_id,
+    game_id,
+    points,
+    rebounds,
+    assists,
+    AVG(points) OVER (
+        PARTITION BY player_id
+        ORDER BY game_date NULLS LAST, game_id
+        ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+    ) AS rolling_points_5,
+    AVG(rebounds) OVER (
+        PARTITION BY player_id
+        ORDER BY game_date NULLS LAST, game_id
+        ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+    ) AS rolling_rebounds_5,
+    AVG(assists) OVER (
+        PARTITION BY player_id
+        ORDER BY game_date NULLS LAST, game_id
+        ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+    ) AS rolling_assists_5,
+    game_date,
+    player_name,
+    position,
+    team_id
+FROM player_game_enriched;
 """
 
 
@@ -200,9 +230,45 @@ def resolve_description_expression(play_by_play_columns: set[str]) -> str:
     )
 
 
-def build_player_game_stats_sql(play_by_play_columns: set[str]) -> str:
+def resolve_game_date_sql(conn: duckdb.DuckDBPyConnection) -> tuple[str, str]:
+    if not _table_exists(conn, "game"):
+        return ("", "CAST(NULL AS TIMESTAMP)")
+
+    game_columns = _table_columns(conn, "game")
+    if {"game_id", "game_date"}.issubset(game_columns):
+        game_join_clause = """
+    LEFT JOIN (
+        SELECT game_id, game_date
+        FROM (
+            SELECT
+                CAST(game_id AS BIGINT) AS game_id,
+                TRY_CAST(game_date AS TIMESTAMP) AS game_date,
+                ROW_NUMBER() OVER (
+                    PARTITION BY CAST(game_id AS BIGINT)
+                    ORDER BY TRY_CAST(game_date AS TIMESTAMP) DESC NULLS LAST
+                ) AS row_rank
+            FROM game
+        )
+        WHERE row_rank = 1
+    ) g
+        ON s.game_id = g.game_id
+"""
+        return (game_join_clause, "g.game_date")
+
+    return ("", "CAST(NULL AS TIMESTAMP)")
+
+
+def build_player_game_stats_sql(
+    play_by_play_columns: set[str],
+    game_join_clause: str,
+    order_game_date_expr: str,
+) -> str:
     description_expr = resolve_description_expression(play_by_play_columns)
-    return PLAYER_GAME_STATS_SQL_TEMPLATE.format(description_expr=description_expr)
+    return PLAYER_GAME_STATS_SQL_TEMPLATE.format(
+        description_expr=description_expr,
+        game_join_clause=game_join_clause,
+        order_game_date_expr=order_game_date_expr,
+    )
 
 
 def main() -> None:
@@ -216,9 +282,16 @@ def main() -> None:
     try:
         print("Validating required source tables...")
         play_by_play_columns = validate_sources(conn)
+        game_join_clause, order_game_date_expr = resolve_game_date_sql(conn)
 
         print("Building player_game_stats table...")
-        conn.execute(build_player_game_stats_sql(play_by_play_columns))
+        conn.execute(
+            build_player_game_stats_sql(
+                play_by_play_columns=play_by_play_columns,
+                game_join_clause=game_join_clause,
+                order_game_date_expr=order_game_date_expr,
+            )
+        )
 
         row_count = conn.execute("SELECT COUNT(*) FROM player_game_stats").fetchone()[0]
         print(f"Built player_game_stats with {row_count} rows.")
