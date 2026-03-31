@@ -22,6 +22,7 @@ from pipelines import predict_matchup as pm
 
 DB_PATH = REPO_ROOT / "data" / "nba.duckdb"
 MODEL_PATH = REPO_ROOT / "models" / "logistic_model.pkl"
+LIVE_GAMES_TABLE = "live_games"
 HOST = "127.0.0.1"
 PORT = 8000
 EASTERN_CONFERENCE = {
@@ -101,11 +102,23 @@ def format_display_date(value: date) -> str:
     return pd.Timestamp(value).strftime("%B %d, %Y").replace(" 0", " ")
 
 
+def _table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:
+    row = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM information_schema.tables
+        WHERE table_schema = 'main' AND table_name = ?
+        """,
+        [table_name],
+    ).fetchone()
+    return bool(row and row[0] > 0)
+
+
 def load_tonights_games(today: date | None = None) -> dict[str, Any]:
     target_date = today or date.today()
     conn = duckdb.connect(str(DB_PATH))
     try:
-        query = """
+        historical_query = """
             SELECT
                 game_id,
                 CAST(game_date AS DATE) AS game_date,
@@ -122,16 +135,43 @@ def load_tonights_games(today: date | None = None) -> dict[str, Any]:
             WHERE CAST(game_date AS DATE) = ?
             ORDER BY game_id
         """
-        rows = conn.execute(query, [target_date]).fetchall()
+        live_query = f"""
+            SELECT
+                game_id,
+                CAST(game_date AS DATE) AS game_date,
+                season_type,
+                team_id_away,
+                team_abbreviation_away,
+                team_name_away,
+                pts_away,
+                team_id_home,
+                team_abbreviation_home,
+                team_name_home,
+                pts_home
+            FROM {LIVE_GAMES_TABLE}
+            WHERE CAST(game_date AS DATE) = ?
+            ORDER BY game_id
+        """
+
+        rows: list[tuple[Any, ...]] = []
         source = "today"
         source_date = target_date
         note = None
+
+        if _table_exists(conn, LIVE_GAMES_TABLE):
+            rows = conn.execute(live_query, [target_date]).fetchall()
+            if rows:
+                source = "live"
+                note = "Showing today's games from the live schedule feed."
+
+        if not rows:
+            rows = conn.execute(historical_query, [target_date]).fetchall()
 
         if not rows:
             latest_row = conn.execute("SELECT MAX(CAST(game_date AS DATE)) FROM game").fetchone()
             latest_date = latest_row[0] if latest_row else None
             if latest_date is not None:
-                rows = conn.execute(query, [latest_date]).fetchall()
+                rows = conn.execute(historical_query, [latest_date]).fetchall()
                 source = "latest"
                 source_date = latest_date
                 note = (

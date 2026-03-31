@@ -112,6 +112,19 @@ Start web app:
 python app/main.py
 ```
 
+Live "today's games" feed (for current slate in the web app):
+
+```powershell
+# balldontlie API key (required)
+$env:BALLDONTLIE_API_KEY="your_key_here"
+
+# Pull today's schedule into data/nba.duckdb::live_games
+python pipelines/fetch_today_games.py
+
+# Then start the app
+python app/main.py
+```
+
 ## Player Props Workflow (balldontlie)
 
 Optional API key:
