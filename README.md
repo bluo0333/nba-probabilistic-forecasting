@@ -46,14 +46,11 @@ End-to-end NBA analytics project for:
 - Includes metadata join (`player_name`, `position`, `team_id`) from `common_player_info` / `player`.
 - Deduplicates by `(game_id, eventnum)` before aggregation to prevent double counting.
 
-### Local Web App
+### API + Frontend
 
-- Runs a local WSGI app at `http://127.0.0.1:8000`.
-- Provides:
-  - team-tile matchup selector
-  - today/latest slate display from local data
-  - matchup probability output
-  - player prop calculator for `points`, `rebounds`, and `3ps`
+- FastAPI backend with router/service/schema architecture.
+- React + Vite frontend for matchup prediction.
+- JSON endpoints for teams and quick matchup scoring.
 
 ## Project Structure
 
@@ -73,6 +70,16 @@ End-to-end NBA analytics project for:
 `app/`
 
 - `main.py`
+- `routes/`
+- `services/`
+- `schemas/`
+- `db/`
+
+`frontend/`
+
+- `src/App.jsx`
+- `src/components/TeamSelector.jsx`
+- `src/components/PredictionCard.jsx`
 
 `data/`
 
@@ -106,23 +113,30 @@ python pipelines/train.py
 python pipelines/predict_matchup.py --home IND --away LAL
 ```
 
-Start web app:
+## Run Backend
 
 ```powershell
-python app/main.py
+uvicorn app.main:app --host 0.0.0.0 --port 10000
 ```
 
-Live "today's games" feed (for current slate in the web app):
+## Run Frontend
 
 ```powershell
-# balldontlie API key (required)
-$env:BALLDONTLIE_API_KEY="your_key_here"
+cd frontend
+copy .env.example .env
+npm install
+npm run dev
+```
 
-# Pull today's schedule into data/nba.duckdb::live_games
-python pipelines/fetch_today_games.py
+## API Endpoints
 
-# Then start the app
-python app/main.py
+```text
+GET  /health
+GET  /teams/
+GET  /predict/quick?home=...&away=...
+POST /predict/matchup
+GET  /props/players
+POST /props/predict
 ```
 
 ## Player Props Workflow (balldontlie)
