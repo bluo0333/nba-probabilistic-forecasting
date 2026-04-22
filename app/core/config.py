@@ -9,6 +9,8 @@ MODELS_DIR = PROJECT_ROOT / "models"
 
 PROCESSED_GAMES_PATH = DATA_DIR / "processed_games.csv"
 FINAL_FEATURES_PATH = DATA_DIR / "final_features.csv"
+TEAMS_PATH = DATA_DIR / "teams.csv"
+TEAM_STATES_PATH = DATA_DIR / "team_states.csv"
 PLAYER_FEATURES_PATH = DATA_DIR / "player_features.csv"
 PLAYER_STATS_PATH = DATA_DIR / "player_game_stats.csv"
 MATCHUP_MODEL_PATH = MODELS_DIR / "logistic_model.pkl"

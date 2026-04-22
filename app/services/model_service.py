@@ -47,6 +47,8 @@ async def lifespan(_app: FastAPI):
 
 def warmup_models() -> None:
     load_matchup_model()
+    data_service.preload_team_index()
+    data_service.preload_prediction_data()
 
 
 def load_matchup_model() -> Any:
