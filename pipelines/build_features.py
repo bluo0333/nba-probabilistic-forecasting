@@ -2,6 +2,18 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 import numpy as np
+import os
+
+os.makedirs("data", exist_ok=True)
+
+# load CSV
+df = pd.read_csv("data/processed_games.csv")
+
+# connect to duckdb
+conn = duckdb.connect("data/nba.duckdb")
+
+# create base table
+conn.execute("CREATE OR REPLACE TABLE model_base AS SELECT * FROM df")
 
 
 def main():
