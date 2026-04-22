@@ -1,101 +1,83 @@
-team_id,team_name
-1610610025,Chicago Stags
-1610610033,Sheboygan Redskins
-1610616833,East NBA All Stars East
-1610612741,Chicago Bulls
-12303,Tel Aviv Maccabi Elite
-12325,Flamengo Flamengo
-1610612758,Cincinnati Royals
-1610612764,Baltimore Bullets
-1610612749,Milwaukee Bucks
-1610616834,Team LeBron
-1610610035,Toronto Huskies
-1610612739,Cleveland Cavaliers
-1610612743,Denver Nuggets
-1610612746,Los Angeles Clippers
-1610610031,Pittsburgh Ironmen
-1610612737,Tri-Cities Blackhawks
-1610610023,Anderson Packers
-1610612737,St. Louis Hawks
-1610612744,Golden State Warriors
-1610612750,Minnesota Timberwolves
-12307,Roma Virtus Lottomatica
-12309,Istanbul Efes Pilsen
-94,Milano Armani Jeans Milano
-1610612752,New York Knicks
-1610612757,Portland Trail Blazers
-1610612763,Memphis Grizzlies
-1610612740,New Orleans Hornets
-1610612760,Oklahoma City Thunder
-1610612740,New Orleans Pelicans
-1610610028,Detroit Falcons
-12318,MMT Estudiantes MMT Estudiantes
-12315,Real Madrid Real Madrid
-12304,Barcelona Regal FC
-12324,Bilbao Basket
-1610612744,Philadelphia Warriors
-1610616834,West NBA All Stars West
-1610612744,San Francisco Warriors
-1610612746,Buffalo Braves
-1610612745,Houston Rockets
-1610612751,New Jersey Nets
-1610612762,Utah Jazz
-1610612748,Miami Heat
-12311,Unicaja Malaga Unicaja Malaga
-1610612758,Rochester Royals
-1610612755,Syracuse Nationals
-1610612764,Capital Bullets
-12305,Lyon-Villeurbanne Adecco ASVEL
-12315,Madrid Real Madrid
-12304,Barcelona FC Barcelona Lassa
-1610610037,Waterloo Hawks
-1610612763,Vancouver Grizzlies
-12304,Barcelona Winterthur FC
-45,China Team China
-1610612746,LA Clippers
-94,Milano Olimpia Milano
-1610612758,Kansas City Kings
-1610612746,San Diego Clippers
-1610612740,New Orleans/Oklahoma City Hornets
-12306,Khimki BC
-12304,Barcelona FC Barcelona Regal
-1610616833,Team Giannis
-1610610034,St. Louis Bombers
-1610610029,Indianapolis Jets
-1610612737,Milwaukee Hawks
-1610612758,Sacramento Kings
-1610612753,Orlando Magic
-1610612751,Brooklyn Nets
-1610610026,Cleveland Rebels
-1610610036,Washington Capitols
-1610610024,Baltimore Bullets
-1610612760,Seattle SuperSonics
-1610612766,Charlotte Hornets
-1610612766,Charlotte Bobcats
-1610612765,Ft. Wayne Zollner Pistons
-1610610027,Denver Nuggets
-1610612747,Los Angeles Lakers
-1610612755,Philadelphia 76ers
-1610612758,Kansas City-Omaha Kings
-1610612762,New Orleans Jazz
-1610612759,San Antonio Spurs
-1610612742,Dallas Mavericks
-12317,Lottomatica Lottomatica Roma
-12321,Istanbul Fenerbahce Ulker
-1610612738,Boston Celtics
-1610610030,Indianapolis Olympians
-1610612745,San Diego Rockets
-1610616833,Team Durant
-1610610032,Providence Steamrollers
-1610612747,Minneapolis Lakers
-1610612737,Atlanta Hawks
-1610612764,Washington Bullets
-1610612764,Washington Wizards
-12323,Berlin Alba Berlin
-1610612765,Detroit Pistons
-1610612764,Chicago Zephyrs
-1610612756,Phoenix Suns
-1610612754,Indiana Pacers
-1610612761,Toronto Raptors
-94,Milano EA7 Emporio Armani Milano
-1610616834,Team Stephen
+team_id,team_name,team_abbreviation
+15019,Adelaide 36ers,ADL
+1610610023,Anderson Packers,AND
+12320,Athens Olympiacos,OLP
+1610612737,Atlanta Hawks,ATL
+1610610024,Baltimore Bullets,BAL
+12304,Barcelona FC Barcelona Lassa,FCB
+12328,Bauru Paschoalotto/Bauru,BAU
+12319,Belegrade Partizan,PAR
+12323,Berlin Alba Berlin,ALB
+12324,Bilbao Basket,UBB
+1610612738,Boston Celtics,BOS
+15017,Brisbane Bullets,BNE
+1610612751,Brooklyn Nets,BKN
+12330,Buenos Aires San Lorenzo,SLA
+1610612766,Charlotte Hornets,CHA
+1610612741,Chicago Bulls,CHI
+1610610025,Chicago Stags,CHS
+45,China Team China,CHN
+1610612739,Cleveland Cavaliers,CLE
+1610610026,Cleveland Rebels,CLR
+1610612742,Dallas Mavericks,DAL
+1610610027,Denver Nuggets,DN
+1610612743,Denver Nuggets,DEN
+1610610028,Detroit Falcons,DEF
+1610612765,Detroit Pistons,DET
+12325,Flamengo Flamengo,FLA
+1610612744,Golden State Warriors,GSW
+15018,Guangzhou Long-Lions,GUA
+93,Haifa Maccabi Haifa,MAC
+1610612745,Houston Rockets,HOU
+1610612754,Indiana Pacers,IND
+1610610029,Indianapolis Jets,JET
+1610610030,Indianapolis Olympians,INO
+12309,Istanbul Efes Pilsen,EPT
+12321,Istanbul Fenerbahce Sports Club,FEN
+12306,Khimki BC,KHI
+1610612746,LA Clippers,LAC
+1610612747,Los Angeles Lakers,LAL
+12317,Lottomatica Lottomatica Roma,LRO
+12305,Lyon-Villeurbanne Adecco ASVEL,LYV
+12318,MMT Estudiantes MMT Estudiantes,MMT
+12315,Madrid Real Madrid,RMD
+15016,Melbourne United,MEL
+1610612763,Memphis Grizzlies,MEM
+1610612748,Miami Heat,MIA
+94,Milano Olimpia Milano,MLN
+1610612749,Milwaukee Bucks,MIL
+1610612750,Minnesota Timberwolves,MIN
+12308,Moscow CSKA,MOS
+1610612740,New Orleans Pelicans,NOP
+1610612752,New York Knicks,NYK
+1610612760,Oklahoma City Thunder,OKC
+1610612753,Orlando Magic,ORL
+12313,Panathinaikos Panathinaikos,PAN
+1610612755,Philadelphia 76ers,PHI
+1610612756,Phoenix Suns,PHX
+1610610031,Pittsburgh Ironmen,PIT
+1610612757,Portland Trail Blazers,POR
+1610610032,Providence Steamrollers,PRO
+50009,Ra'anana Maccabi Ra'anana,MRA
+12307,Roma Virtus Lottomatica,ROM
+1610612758,Sacramento Kings,SAC
+1610612759,San Antonio Spurs,SAS
+12329,Shanghai Sharks,SDS
+1610610033,Sheboygan Redskins,SHE
+12322,Siena Montepaschi Siena,MPS
+1610610034,St. Louis Bombers,BOM
+15015,Sydney Kings,SYD
+1610616833,Team Giannis,GNS
+1610616834,Team LeBron,LBN
+41,Tel Aviv Maccabi Electra,MTA
+12303,Tel Aviv Maccabi Elite,MTA
+1610610035,Toronto Huskies,HUS
+1610612761,Toronto Raptors,TOR
+12311,Unicaja Malaga Unicaja Malaga,MAL
+1610612762,Utah Jazz,UTA
+12314,Vilnius Lietuvos Rytas,LRY
+95,Vitoria Caja Laboral,LAB
+1610610036,Washington Capitols,WAS
+1610612764,Washington Wizards,WAS
+1610610037,Waterloo Hawks,WAT
+12316,Zalgiris Kaunas Zalgiris Kaunas,ZAK
