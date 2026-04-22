@@ -12,7 +12,7 @@ router = APIRouter(prefix="/teams", tags=["teams"])
 def list_teams() -> list[str]:
     try:
         with get_connection() as conn:
-            teams = data_service.get_teams(conn)
+            teams = data_service.get_modern_nba_team_names(conn)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
@@ -23,4 +23,4 @@ def list_teams() -> list[str]:
     if not teams:
         raise HTTPException(status_code=404, detail="No teams found in local database.")
 
-    return [team["full_name"] for team in teams]
+    return teams

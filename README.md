@@ -103,6 +103,11 @@ Pipelines (pipelines/*.py) feed DuckDB tables and model artifacts.
 - Play-by-play aggregation:
   - `pipelines/build_player_game_stats.py`
 
+## Current Status
+
+- Game outcome prediction: ✅ fully deployed
+- Player prop prediction: 🚧 in progress (pipeline exists, not deployed due to data scaling constraints)
+
 ## Model Performance
 
 Current out-of-sample game model performance (2018-2023):

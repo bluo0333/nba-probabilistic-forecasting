@@ -86,6 +86,39 @@ NUMERIC_COLUMNS = [
 ]
 
 _TEAM_INDEX: dict[str, dict[str, str]] | None = None
+MODERN_NBA_MIN_SEASON_ID = 22018
+CURRENT_NBA_TEAM_NAMES = [
+    "Atlanta Hawks",
+    "Boston Celtics",
+    "Brooklyn Nets",
+    "Charlotte Hornets",
+    "Chicago Bulls",
+    "Cleveland Cavaliers",
+    "Dallas Mavericks",
+    "Denver Nuggets",
+    "Detroit Pistons",
+    "Golden State Warriors",
+    "Houston Rockets",
+    "Indiana Pacers",
+    "Los Angeles Clippers",
+    "Los Angeles Lakers",
+    "Memphis Grizzlies",
+    "Miami Heat",
+    "Milwaukee Bucks",
+    "Minnesota Timberwolves",
+    "New Orleans Pelicans",
+    "New York Knicks",
+    "Oklahoma City Thunder",
+    "Orlando Magic",
+    "Philadelphia 76ers",
+    "Phoenix Suns",
+    "Portland Trail Blazers",
+    "Sacramento Kings",
+    "San Antonio Spurs",
+    "Toronto Raptors",
+    "Utah Jazz",
+    "Washington Wizards",
+]
 
 
 def _normalize_text(value: str) -> str:
@@ -228,6 +261,61 @@ def get_teams(_conn: Any = None) -> list[dict[str, str]]:
         }
         for team in teams
     ]
+
+
+def get_modern_nba_team_names(conn: Any) -> list[str]:
+    has_game_table = conn.execute(
+        """
+        SELECT 1
+        FROM information_schema.tables
+        WHERE lower(table_name) = 'game'
+        LIMIT 1
+        """
+    ).fetchone()
+
+    if has_game_table:
+        table_ref = "game"
+    else:
+        if not PROCESSED_GAMES_PATH.is_file():
+            raise FileNotFoundError(f"Data file not found: {PROCESSED_GAMES_PATH}")
+        csv_path = PROCESSED_GAMES_PATH.resolve().as_posix().replace("'", "''")
+        table_ref = f"read_csv_auto('{csv_path}', header=true)"
+
+    current_name_list_sql = ", ".join(
+        "'" + name.replace("'", "''") + "'" for name in CURRENT_NBA_TEAM_NAMES
+    )
+    rows = conn.execute(
+        f"""
+        WITH raw_teams AS (
+            SELECT trim(CAST(team_name_home AS VARCHAR)) AS team_name
+            FROM {table_ref}
+            WHERE CAST(season_id AS BIGINT) >= ?
+            UNION ALL
+            SELECT trim(CAST(team_name_away AS VARCHAR)) AS team_name
+            FROM {table_ref}
+            WHERE CAST(season_id AS BIGINT) >= ?
+        ),
+        teams AS (
+            SELECT
+                CASE
+                    WHEN team_name = 'LA Clippers' THEN 'Los Angeles Clippers'
+                    WHEN team_name = 'New Jersey Nets' THEN 'Brooklyn Nets'
+                    WHEN team_name = 'New Orleans Hornets' THEN 'New Orleans Pelicans'
+                    WHEN team_name = 'Seattle SuperSonics' THEN 'Oklahoma City Thunder'
+                    ELSE team_name
+                END AS team_name
+            FROM raw_teams
+        )
+        SELECT DISTINCT team_name
+        FROM teams
+        WHERE team_name IS NOT NULL
+          AND team_name <> ''
+          AND team_name IN ({current_name_list_sql})
+        ORDER BY team_name ASC
+        """,
+        [MODERN_NBA_MIN_SEASON_ID, MODERN_NBA_MIN_SEASON_ID],
+    ).fetchall()
+    return [str(row[0]) for row in rows]
 
 
 def resolve_team_id(_conn: Any, team_query: str) -> str:
