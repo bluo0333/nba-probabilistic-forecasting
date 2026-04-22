@@ -21,7 +21,8 @@ frontend/package-lock.json
 .ipynb_checkpoints/
 
 # Data
-
+data/*
+!data/processed_games.csv
 data/raw/
 data/processed/
 data/artifacts/
