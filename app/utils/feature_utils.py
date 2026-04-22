@@ -39,6 +39,7 @@ FEATURES = [
     "orb_pct_diff_last10",
     "ftr_diff_last10",
 ]
+
 STATE_DEFAULTS = {
     "elo_pre": 1500.0,
     "avg_pts_for_last5": 110.0,
@@ -128,7 +129,9 @@ def predict_mean_from_model(model: Any, row: pd.Series) -> float | None:
 
 
 def extract_stat_series(
-    stats_df: pd.DataFrame, player_norm: str, column_candidates: list[str]
+    stats_df: pd.DataFrame,
+    player_norm: str,
+    column_candidates: list[str],
 ):
     stat_col = pick_existing_column(stats_df, column_candidates)
     if stat_col is None:
@@ -147,7 +150,9 @@ def extract_stat_series(
 
 
 def resolve_matchup_date_context(
-    home_last_game, away_last_game, game_date_text: str | None
+    home_last_game,
+    away_last_game,
+    game_date_text: str | None,
 ) -> tuple[pd.Timestamp, int, int]:
     if game_date_text:
         try:

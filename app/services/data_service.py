@@ -3,14 +3,11 @@ from __future__ import annotations
 from collections import deque
 from functools import lru_cache
 import math
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-PROCESSED_GAMES_PATH = PROJECT_ROOT / "data" / "processed_games.csv"
-FINAL_FEATURES_PATH = PROJECT_ROOT / "data" / "final_features.csv"
+from app.core.config import FINAL_FEATURES_PATH, PROCESSED_GAMES_PATH
 
 INITIAL_ELO = 1500.0
 K = 20.0
@@ -87,7 +84,6 @@ NUMERIC_COLUMNS = [
     "dreb_home",
 ]
 
-MODERN_NBA_MIN_SEASON_ID = 22018
 CURRENT_NBA_TEAM_NAMES = [
     "Atlanta Hawks",
     "Boston Celtics",
@@ -623,7 +619,7 @@ def team_conference(team_abbreviation: str) -> str:
     return "East" if team_abbreviation in EASTERN_CONFERENCE else "West"
 
 
-def get_teams(_conn: Any = None) -> list[dict[str, str]]:
+def get_teams() -> list[dict[str, str]]:
     teams = list(_ensure_team_index().values())
     teams.sort(key=lambda row: row["abbreviation"])
     return [
@@ -638,62 +634,14 @@ def get_teams(_conn: Any = None) -> list[dict[str, str]]:
     ]
 
 
-def get_modern_nba_team_names(conn: Any) -> list[str]:
-    has_game_table = conn.execute(
-        """
-        SELECT 1
-        FROM information_schema.tables
-        WHERE lower(table_name) = 'game'
-        LIMIT 1
-        """
-    ).fetchone()
-
-    if has_game_table:
-        table_ref = "game"
-    else:
-        if not PROCESSED_GAMES_PATH.is_file():
-            raise FileNotFoundError(f"Data file not found: {PROCESSED_GAMES_PATH}")
-        csv_path = PROCESSED_GAMES_PATH.resolve().as_posix().replace("'", "''")
-        table_ref = f"read_csv_auto('{csv_path}', header=true)"
-
-    current_name_list_sql = ", ".join(
-        "'" + name.replace("'", "''") + "'" for name in CURRENT_NBA_TEAM_NAMES
-    )
-    rows = conn.execute(
-        f"""
-        WITH raw_teams AS (
-            SELECT trim(CAST(team_name_home AS VARCHAR)) AS team_name
-            FROM {table_ref}
-            WHERE CAST(season_id AS BIGINT) >= ?
-            UNION ALL
-            SELECT trim(CAST(team_name_away AS VARCHAR)) AS team_name
-            FROM {table_ref}
-            WHERE CAST(season_id AS BIGINT) >= ?
-        ),
-        teams AS (
-            SELECT
-                CASE
-                    WHEN team_name = 'LA Clippers' THEN 'Los Angeles Clippers'
-                    WHEN team_name = 'New Jersey Nets' THEN 'Brooklyn Nets'
-                    WHEN team_name = 'New Orleans Hornets' THEN 'New Orleans Pelicans'
-                    WHEN team_name = 'Seattle SuperSonics' THEN 'Oklahoma City Thunder'
-                    ELSE team_name
-                END AS team_name
-            FROM raw_teams
-        )
-        SELECT DISTINCT team_name
-        FROM teams
-        WHERE team_name IS NOT NULL
-          AND team_name <> ''
-          AND team_name IN ({current_name_list_sql})
-        ORDER BY team_name ASC
-        """,
-        [MODERN_NBA_MIN_SEASON_ID, MODERN_NBA_MIN_SEASON_ID],
-    ).fetchall()
-    return [str(row[0]) for row in rows]
+def get_modern_nba_team_names() -> list[str]:
+    teams = get_teams()
+    all_names = {str(team["full_name"]).strip() for team in teams if team.get("full_name")}
+    modern_names = sorted(name for name in all_names if name in CURRENT_NBA_TEAM_NAMES)
+    return modern_names if modern_names else sorted(all_names)
 
 
-def resolve_team_id(_conn: Any, team_query: str) -> str:
+def resolve_team_id(team_query: str) -> str:
     teams, alias_to_ids = _team_index_bundle()
     q = _normalize_text(team_query)
     if not q:
@@ -718,7 +666,6 @@ def resolve_team_id(_conn: Any, team_query: str) -> str:
 
 
 def get_team_metadata(
-    _conn: Any,
     home_id: str,
     away_id: str,
 ) -> tuple[dict[str, str], dict[str, str]]:
@@ -773,7 +720,7 @@ def get_matchup_snapshot(
     return home_state, away_state, home_last_game, away_last_game
 
 
-def get_latest_team_state(_conn: Any, team_id: str) -> dict[str, Any]:
+def get_latest_team_state(team_id: str) -> dict[str, Any]:
     team_id_norm = _normalize_team_id(team_id)
     if not team_id_norm:
         raise ValueError("Team id is required.")
@@ -785,6 +732,6 @@ def get_latest_team_state(_conn: Any, team_id: str) -> dict[str, Any]:
     return dict(state)
 
 
-def get_last_game_date(_conn: Any, team_id: str):
-    state = get_latest_team_state(_conn, team_id)
+def get_last_game_date(team_id: str):
+    state = get_latest_team_state(team_id)
     return pd.Timestamp(state["last_game_date"])

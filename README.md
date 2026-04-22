@@ -1,20 +1,45 @@
 # NBA Probabilistic Forecasting Platform
 
-Full-stack sports analytics platform for predicting NBA game outcomes using machine learning and historical data.
+Full-stack NBA prediction platform with live API and UI.
+
+**Live Frontend URL:**  
+https://hoopsedge.onrender.com
+
+**API Docs URL:**  
+https://nba-probabilistic-forecasting.onrender.com/docs
 
 ---
 
 ## Live Demo
 
-Try it: https://hoopsedge.onrender.com
+- Frontend: https://hoopsedge.onrender.com
+- API Docs (Swagger): https://nba-probabilistic-forecasting.onrender.com/docs
+- Base API: https://nba-probabilistic-forecasting.onrender.com
 
-Select teams, run predictions, and view results in real time.
+## Features
 
-**API (Swagger UI):**  
-https://nba-probabilistic-forecasting.onrender.com/docs
+- Matchup win-probability predictions
+- Player prop probability scoring
+- FastAPI backend with interactive Swagger docs
+- React UI for team selection and live predictions
+- Lightweight inference runtime using CSV features + serialized models
 
-**Base API URL:**  
-https://nba-probabilistic-forecasting.onrender.com
+## Tech Stack
+
+- Python 3 + FastAPI
+- scikit-learn + joblib
+- pandas + numpy + scipy
+- React + Vite
+- Render (frontend + API deployment)
+
+## Architecture Overview
+
+- `app/main.py`: app assembly only
+- `app/api/routes/*`: HTTP layer
+- `app/services/*`: business logic and inference
+- `app/schemas/*`: request/response contracts
+- `app/core/config.py`: runtime config and paths
+- `app/utils/*`: shared helper utilities
 
 ---
 
@@ -26,7 +51,7 @@ The system includes:
 
 - a FastAPI backend serving real-time predictions via a REST API
 - a React frontend for interactive matchup analysis
-- a DuckDB-based data pipeline for ingestion, feature engineering, and model training
+- an offline data pipeline for ingestion, feature engineering, and model training
 
 The project is designed with production-style architecture, separating data pipelines, model inference, and API layers into modular components.
 
@@ -54,10 +79,10 @@ Interactive frontend for selecting matchups and viewing model predictions.
 
 - Python 3
 - FastAPI
-- DuckDB
 - scikit-learn (joblib)
 - pandas + numpy + scipy
 - React + Vite
+- Render
 
 ## Architecture
 
@@ -78,7 +103,7 @@ Interactive frontend for selecting matchups and viewing model predictions.
           v                                     v
 +---------------------+              +----------------------+
 |   Route Layer       |              |   Schema Layer       |
-| app/routes/*.py     |              | app/schemas/*.py     |
+| app/api/routes/*.py |              | app/schemas/*.py     |
 +----------+----------+              +----------------------+
            |
            v
@@ -86,17 +111,17 @@ Interactive frontend for selecting matchups and viewing model predictions.
 |   Service Layer     |
 | app/services/*.py   |
 | - data_service      |
-| - feature_service   |
+| - team_service      |
 | - model_service     |
 +----------+----------+
            |
            v
 +----------+----------+      +-------------------------+
-| DuckDB (data/*.duckdb)|    | Models (models/*.pkl)   |
-| SQL + historical data |    | sklearn/joblib artifacts|
-+----------------------+      +-------------------------+
+| Processed CSV data  |      | Models (models/*.pkl)   |
+| data/*.csv          |      | sklearn/joblib artifacts|
++---------------------+      +-------------------------+
 
-Pipelines (pipelines/*.py) feed DuckDB tables and model artifacts.
+Pipelines (pipelines/*.py) build runtime CSV/model artifacts offline.
 ```
 
 ## Features
