@@ -1,47 +1,40 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-const TEAM_ABBREVIATIONS = {
-  "Atlanta Hawks": "atl",
-  "Boston Celtics": "bos",
-  "Brooklyn Nets": "bkn",
-  "Charlotte Hornets": "cha",
-  "Chicago Bulls": "chi",
-  "Cleveland Cavaliers": "cle",
-  "Dallas Mavericks": "dal",
-  "Denver Nuggets": "den",
-  "Detroit Pistons": "det",
-  "Golden State Warriors": "gs",
-  "Houston Rockets": "hou",
-  "Indiana Pacers": "ind",
-  "LA Clippers": "lac",
-  "Los Angeles Clippers": "lac",
-  "Los Angeles Lakers": "lal",
-  "Memphis Grizzlies": "mem",
-  "Miami Heat": "mia",
-  "Milwaukee Bucks": "mil",
-  "Minnesota Timberwolves": "min",
-  "New Orleans Pelicans": "no",
-  "New York Knicks": "ny",
-  "Oklahoma City Thunder": "okc",
-  "Orlando Magic": "orl",
-  "Philadelphia 76ers": "phi",
-  "Phoenix Suns": "phx",
-  "Portland Trail Blazers": "por",
-  "Sacramento Kings": "sac",
-  "San Antonio Spurs": "sa",
-  "Toronto Raptors": "tor",
-  "Utah Jazz": "uta",
-  "Washington Wizards": "wsh",
+const TEAM_LOGOS = {
+  "Atlanta Hawks": "https://a.espncdn.com/i/teamlogos/nba/500/atl.png",
+  "Boston Celtics": "https://a.espncdn.com/i/teamlogos/nba/500/bos.png",
+  "Brooklyn Nets": "https://a.espncdn.com/i/teamlogos/nba/500/bkn.png",
+  "Charlotte Hornets": "https://a.espncdn.com/i/teamlogos/nba/500/cha.png",
+  "Chicago Bulls": "https://a.espncdn.com/i/teamlogos/nba/500/chi.png",
+  "Cleveland Cavaliers": "https://a.espncdn.com/i/teamlogos/nba/500/cle.png",
+  "Dallas Mavericks": "https://a.espncdn.com/i/teamlogos/nba/500/dal.png",
+  "Denver Nuggets": "https://a.espncdn.com/i/teamlogos/nba/500/den.png",
+  "Detroit Pistons": "https://a.espncdn.com/i/teamlogos/nba/500/det.png",
+  "Golden State Warriors": "https://a.espncdn.com/i/teamlogos/nba/500/gsw.png",
+  "Houston Rockets": "https://a.espncdn.com/i/teamlogos/nba/500/hou.png",
+  "Indiana Pacers": "https://a.espncdn.com/i/teamlogos/nba/500/ind.png",
+  "Los Angeles Clippers": "https://a.espncdn.com/i/teamlogos/nba/500/lac.png",
+  "LA Clippers": "https://a.espncdn.com/i/teamlogos/nba/500/lac.png",
+  "Los Angeles Lakers": "https://a.espncdn.com/i/teamlogos/nba/500/lal.png",
+  "Memphis Grizzlies": "https://a.espncdn.com/i/teamlogos/nba/500/mem.png",
+  "Miami Heat": "https://a.espncdn.com/i/teamlogos/nba/500/mia.png",
+  "Milwaukee Bucks": "https://a.espncdn.com/i/teamlogos/nba/500/mil.png",
+  "Minnesota Timberwolves": "https://a.espncdn.com/i/teamlogos/nba/500/min.png",
+  "New Orleans Pelicans": "https://a.espncdn.com/i/teamlogos/nba/500/no.png",
+  "New York Knicks": "https://a.espncdn.com/i/teamlogos/nba/500/ny.png",
+  "Oklahoma City Thunder": "https://a.espncdn.com/i/teamlogos/nba/500/okc.png",
+  "Orlando Magic": "https://a.espncdn.com/i/teamlogos/nba/500/orl.png",
+  "Philadelphia 76ers": "https://a.espncdn.com/i/teamlogos/nba/500/phi.png",
+  "Phoenix Suns": "https://a.espncdn.com/i/teamlogos/nba/500/phx.png",
+  "Portland Trail Blazers": "https://a.espncdn.com/i/teamlogos/nba/500/por.png",
+  "Sacramento Kings": "https://a.espncdn.com/i/teamlogos/nba/500/sac.png",
+  "San Antonio Spurs": "https://a.espncdn.com/i/teamlogos/nba/500/sa.png",
+  "Toronto Raptors": "https://a.espncdn.com/i/teamlogos/nba/500/tor.png",
+  "Utah Jazz": "https://a.espncdn.com/i/teamlogos/nba/500/utah.png",
+  "Washington Wizards": "https://a.espncdn.com/i/teamlogos/nba/500/wsh.png",
 };
-
-const TEAM_LOGOS = Object.fromEntries(
-  Object.entries(TEAM_ABBREVIATIONS).map(([teamName, code]) => [
-    teamName,
-    `https://a.espncdn.com/i/teamlogos/nba/500/${code}.png`,
-  ]),
-);
 
 function getInitials(teamName) {
   const words = teamName.split(" ").filter(Boolean);
@@ -63,6 +56,7 @@ export default function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectingType, setSelectingType] = useState(null);
   const [hoveredTeam, setHoveredTeam] = useState("");
+  const [teamSearch, setTeamSearch] = useState("");
   const [brokenLogos, setBrokenLogos] = useState({});
 
   useEffect(() => {
@@ -86,9 +80,18 @@ export default function App() {
     loadTeams();
   }, []);
 
+  const filteredTeams = useMemo(() => {
+    const query = teamSearch.trim().toLowerCase();
+    if (!query) return teams;
+    return teams.filter((team) => team.toLowerCase().includes(query));
+  }, [teams, teamSearch]);
+
+  const selectedInModal = selectingType === "home" ? selectedHome : selectedAway;
+
   const openTeamModal = (type) => {
     setSelectingType(type);
     setSelectionError("");
+    setTeamSearch("");
     setModalOpen(true);
   };
 
@@ -96,6 +99,7 @@ export default function App() {
     setModalOpen(false);
     setSelectingType(null);
     setHoveredTeam("");
+    setTeamSearch("");
   };
 
   const handleSelectTeam = (team) => {
@@ -173,7 +177,7 @@ export default function App() {
       <section
         style={{
           width: "100%",
-          maxWidth: 400,
+          maxWidth: 420,
           backgroundColor: "#ffffff",
           borderRadius: 14,
           boxShadow: "0 10px 30px rgba(15, 23, 42, 0.10)",
@@ -350,7 +354,7 @@ export default function App() {
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.55)",
+            backgroundColor: "rgba(15, 23, 42, 0.58)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -362,24 +366,44 @@ export default function App() {
             onClick={(event) => event.stopPropagation()}
             style={{
               width: "100%",
-              maxWidth: 720,
-              maxHeight: "80vh",
+              maxWidth: 860,
+              maxHeight: "82vh",
               overflowY: "auto",
               backgroundColor: "#ffffff",
-              borderRadius: 12,
-              padding: 18,
+              borderRadius: 14,
+              padding: 20,
+              boxShadow: "0 18px 40px rgba(15, 23, 42, 0.24)",
             }}
           >
             <h3
               style={{
                 marginTop: 0,
-                marginBottom: 14,
+                marginBottom: 12,
                 textAlign: "center",
                 color: "#111827",
+                fontSize: 22,
               }}
             >
               Select Team
             </h3>
+
+            <input
+              type="text"
+              value={teamSearch}
+              onChange={(event) => setTeamSearch(event.target.value)}
+              placeholder="Search teams..."
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                border: "1px solid #d1d5db",
+                borderRadius: 10,
+                padding: "10px 12px",
+                fontSize: 14,
+                color: "#111827",
+                marginBottom: 14,
+                outline: "none",
+              }}
+            />
 
             {selectionError ? (
               <p
@@ -398,14 +422,15 @@ export default function App() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-                gap: 10,
+                gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))",
+                gap: 12,
               }}
             >
-              {teams.map((team) => {
+              {filteredTeams.map((team) => {
                 const logoUrl = TEAM_LOGOS[team];
-                const showLogo = logoUrl && !brokenLogos[team];
+                const showLogo = Boolean(logoUrl && !brokenLogos[team]);
                 const isHovered = hoveredTeam === team;
+                const isSelected = selectedInModal === team;
 
                 return (
                   <button
@@ -415,24 +440,33 @@ export default function App() {
                     onMouseEnter={() => setHoveredTeam(team)}
                     onMouseLeave={() => setHoveredTeam("")}
                     style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 10,
-                      padding: 10,
-                      backgroundColor: isHovered ? "#f3f4f6" : "#ffffff",
+                      border: isSelected ? "2px solid #2563eb" : "1px solid #e5e7eb",
+                      borderRadius: 12,
+                      padding: 12,
+                      backgroundColor: isSelected ? "#eff6ff" : "#ffffff",
                       cursor: "pointer",
                       textAlign: "center",
-                      display: "grid",
-                      gap: 8,
-                      justifyItems: "center",
-                      minHeight: 90,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 10,
+                      minHeight: 120,
+                      boxShadow:
+                        isHovered || isSelected
+                          ? "0 8px 18px rgba(15, 23, 42, 0.12)"
+                          : "0 1px 2px rgba(15, 23, 42, 0.04)",
+                      transform: isHovered ? "scale(1.02)" : "scale(1)",
+                      transition:
+                        "transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease, border-color 120ms ease",
                     }}
                   >
                     {showLogo ? (
                       <img
                         src={logoUrl}
                         alt={`${team} logo`}
-                        width={34}
-                        height={34}
+                        width={50}
+                        height={50}
                         style={{ objectFit: "contain" }}
                         onError={() =>
                           setBrokenLogos((prev) => ({ ...prev, [team]: true }))
@@ -441,28 +475,49 @@ export default function App() {
                     ) : (
                       <div
                         style={{
-                          width: 34,
-                          height: 34,
+                          width: 50,
+                          height: 50,
                           borderRadius: "50%",
                           backgroundColor: "#e5e7eb",
                           color: "#374151",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: 11,
+                          fontSize: 14,
                           fontWeight: 700,
                         }}
                       >
                         {getInitials(team)}
                       </div>
                     )}
-                    <span style={{ fontSize: 12, color: "#111827" }}>
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: "#111827",
+                        fontWeight: 600,
+                        lineHeight: 1.25,
+                      }}
+                    >
                       {team}
                     </span>
                   </button>
                 );
               })}
             </div>
+
+            {filteredTeams.length === 0 ? (
+              <p
+                style={{
+                  marginTop: 14,
+                  marginBottom: 0,
+                  color: "#6b7280",
+                  textAlign: "center",
+                  fontSize: 14,
+                }}
+              >
+                No teams found.
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}
