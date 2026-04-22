@@ -2,7 +2,7 @@
 
 ## Overview
 
-Full-stack sports analytics platform that predicts NBA game outcomes and player prop performance using historical data, engineered features, and machine learning models.
+Full-stack sports analytics platform for predicting NBA game outcomes and player props using historical data, engineered features, and machine learning models.
 
 The system includes:
 
@@ -12,7 +12,7 @@ The system includes:
 
 The project is designed with production-style architecture, separating data pipelines, model inference, and API layers into modular components.
 
----
+## Built with a production-style architecture and deployed-ready API design to simulate real-world backend systems.
 
 ## Demo
 
@@ -20,9 +20,9 @@ The project is designed with production-style architecture, separating data pipe
 
 ![Swagger UI](assets/swagger.png)
 
-Interactive frontend for selecting matchups and viewing model predictions.
-
 ### Main Interface
+
+Interactive frontend for selecting matchups and viewing model predictions.
 
 ![Main UI](assets/main.png)
 
@@ -32,14 +32,12 @@ Interactive frontend for selecting matchups and viewing model predictions.
 
 ---
 
-## Features
-
 ## Tech Stack
 
 - Python 3
 - FastAPI
 - DuckDB
-- scikit-learn + joblib
+- scikit-learn (joblib)
 - pandas + numpy + scipy
 - React + Vite
 
