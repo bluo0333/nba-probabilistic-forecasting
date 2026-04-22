@@ -7,7 +7,6 @@ from typing import Any
 import joblib
 import pandas as pd
 
-from app.db.connection import get_connection
 from app.services import data_service, feature_service
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -63,18 +62,15 @@ def predict_matchup(
 ) -> dict[str, Any]:
     model = load_matchup_model()
 
-    with get_connection() as conn:
-        home_id = data_service.resolve_team_id(conn, home)
-        away_id = data_service.resolve_team_id(conn, away)
-        if home_id == away_id:
-            raise ValueError("Home and away teams must be different.")
+    home_id = data_service.resolve_team_id(None, home)
+    away_id = data_service.resolve_team_id(None, away)
+    if home_id == away_id:
+        raise ValueError("Home and away teams must be different.")
 
-        home_meta, away_meta = data_service.get_team_metadata(conn, home_id, away_id)
-
-        home_state = data_service.get_latest_team_state(conn, home_id)
-        away_state = data_service.get_latest_team_state(conn, away_id)
-        home_last_game = data_service.get_last_game_date(conn, home_id)
-        away_last_game = data_service.get_last_game_date(conn, away_id)
+    home_meta, away_meta = data_service.get_team_metadata(None, home_id, away_id)
+    home_state, away_state, home_last_game, away_last_game = (
+        data_service.get_matchup_snapshot(home_id=home_id, away_id=away_id)
+    )
 
     game_date, home_rest_days, away_rest_days = (
         feature_service.resolve_matchup_date_context(

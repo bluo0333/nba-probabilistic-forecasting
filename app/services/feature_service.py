@@ -5,7 +5,67 @@ from typing import Any
 
 import pandas as pd
 
-from pipelines import predict_matchup as matchup_pipeline
+FEATURES = [
+    "home_elo_pre",
+    "away_elo_pre",
+    "home_avg_pts_for_last5",
+    "home_avg_pts_against_last5",
+    "away_avg_pts_for_last5",
+    "away_avg_pts_against_last5",
+    "home_win_pct_last5",
+    "away_win_pct_last5",
+    "home_rest_days",
+    "away_rest_days",
+    "home_b2b",
+    "away_b2b",
+    "home_netrtg_last10",
+    "away_netrtg_last10",
+    "home_efg_last10",
+    "home_tov_pct_last10",
+    "home_orb_pct_last10",
+    "home_ftr_last10",
+    "away_efg_last10",
+    "away_tov_pct_last10",
+    "away_orb_pct_last10",
+    "away_ftr_last10",
+    "net_diff_last5",
+    "win_pct_diff_last5",
+    "elo_diff",
+    "rest_diff",
+    "b2b_diff",
+    "netrtg_diff_last10",
+    "efg_diff_last10",
+    "tov_pct_diff_last10",
+    "orb_pct_diff_last10",
+    "ftr_diff_last10",
+]
+STATE_DEFAULTS = {
+    "elo_pre": 1500.0,
+    "avg_pts_for_last5": 110.0,
+    "avg_pts_against_last5": 110.0,
+    "win_pct_last5": 0.5,
+    "netrtg_last10": 0.0,
+    "efg_last10": 0.53,
+    "tov_pct_last10": 0.13,
+    "orb_pct_last10": 0.28,
+    "ftr_last10": 0.20,
+}
+
+
+def _safe_float(value: Any, default: float) -> float:
+    if value is None:
+        return float(default)
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    if pd.isna(out):
+        return float(default)
+    return out
+
+
+def _state_value(state: dict[str, Any], key: str) -> float:
+    return _safe_float(state.get(key), STATE_DEFAULTS[key])
 
 
 def normalize_name(value: str) -> str:
@@ -110,6 +170,67 @@ def build_matchup_features(
     home_rest_days: int,
     away_rest_days: int,
 ) -> pd.DataFrame:
-    return matchup_pipeline.build_feature_row(
-        home_state, away_state, home_rest_days, away_rest_days
-    )
+    home_b2b = int(home_rest_days <= 1)
+    away_b2b = int(away_rest_days <= 1)
+
+    home_elo_pre = _state_value(home_state, "elo_pre")
+    away_elo_pre = _state_value(away_state, "elo_pre")
+
+    home_avg_pts_for_last5 = _state_value(home_state, "avg_pts_for_last5")
+    home_avg_pts_against_last5 = _state_value(home_state, "avg_pts_against_last5")
+    away_avg_pts_for_last5 = _state_value(away_state, "avg_pts_for_last5")
+    away_avg_pts_against_last5 = _state_value(away_state, "avg_pts_against_last5")
+
+    home_win_pct_last5 = _state_value(home_state, "win_pct_last5")
+    away_win_pct_last5 = _state_value(away_state, "win_pct_last5")
+
+    home_netrtg_last10 = _state_value(home_state, "netrtg_last10")
+    away_netrtg_last10 = _state_value(away_state, "netrtg_last10")
+
+    home_efg_last10 = _state_value(home_state, "efg_last10")
+    away_efg_last10 = _state_value(away_state, "efg_last10")
+    home_tov_pct_last10 = _state_value(home_state, "tov_pct_last10")
+    away_tov_pct_last10 = _state_value(away_state, "tov_pct_last10")
+    home_orb_pct_last10 = _state_value(home_state, "orb_pct_last10")
+    away_orb_pct_last10 = _state_value(away_state, "orb_pct_last10")
+    home_ftr_last10 = _state_value(home_state, "ftr_last10")
+    away_ftr_last10 = _state_value(away_state, "ftr_last10")
+
+    home_net_last5 = home_avg_pts_for_last5 - home_avg_pts_against_last5
+    away_net_last5 = away_avg_pts_for_last5 - away_avg_pts_against_last5
+
+    row = {
+        "home_elo_pre": home_elo_pre,
+        "away_elo_pre": away_elo_pre,
+        "home_avg_pts_for_last5": home_avg_pts_for_last5,
+        "home_avg_pts_against_last5": home_avg_pts_against_last5,
+        "away_avg_pts_for_last5": away_avg_pts_for_last5,
+        "away_avg_pts_against_last5": away_avg_pts_against_last5,
+        "home_win_pct_last5": home_win_pct_last5,
+        "away_win_pct_last5": away_win_pct_last5,
+        "home_rest_days": float(home_rest_days),
+        "away_rest_days": float(away_rest_days),
+        "home_b2b": float(home_b2b),
+        "away_b2b": float(away_b2b),
+        "home_netrtg_last10": home_netrtg_last10,
+        "away_netrtg_last10": away_netrtg_last10,
+        "home_efg_last10": home_efg_last10,
+        "home_tov_pct_last10": home_tov_pct_last10,
+        "home_orb_pct_last10": home_orb_pct_last10,
+        "home_ftr_last10": home_ftr_last10,
+        "away_efg_last10": away_efg_last10,
+        "away_tov_pct_last10": away_tov_pct_last10,
+        "away_orb_pct_last10": away_orb_pct_last10,
+        "away_ftr_last10": away_ftr_last10,
+        "net_diff_last5": home_net_last5 - away_net_last5,
+        "win_pct_diff_last5": home_win_pct_last5 - away_win_pct_last5,
+        "elo_diff": home_elo_pre - away_elo_pre,
+        "rest_diff": float(home_rest_days - away_rest_days),
+        "b2b_diff": float(home_b2b - away_b2b),
+        "netrtg_diff_last10": home_netrtg_last10 - away_netrtg_last10,
+        "efg_diff_last10": home_efg_last10 - away_efg_last10,
+        "tov_pct_diff_last10": home_tov_pct_last10 - away_tov_pct_last10,
+        "orb_pct_diff_last10": home_orb_pct_last10 - away_orb_pct_last10,
+        "ftr_diff_last10": home_ftr_last10 - away_ftr_last10,
+    }
+    return pd.DataFrame([row], columns=FEATURES)
