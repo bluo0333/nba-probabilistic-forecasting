@@ -12,9 +12,10 @@ from app.routes.teams import router as teams_router
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    from app.services import model_service
+    from app.services import data_service, model_service
 
     model_service.load_matchup_model()
+    data_service.preload_prediction_data()
     yield
 
 app = FastAPI(

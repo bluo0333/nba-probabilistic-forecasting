@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import math
 from pathlib import Path
+import time
 from typing import Any
 
 import joblib
@@ -62,6 +63,14 @@ def load_matchup_model() -> Any:
 def predict_matchup(
     home: str, away: str, game_date_text: str | None = None
 ) -> dict[str, Any]:
+    started_at = time.perf_counter()
+    print(f"[predict] start home={home} away={away} game_date={game_date_text}")
+    logger.info(
+        "predict_matchup start home=%s away=%s game_date=%s",
+        home,
+        away,
+        game_date_text,
+    )
     try:
         model = load_matchup_model()
 
@@ -103,7 +112,7 @@ def predict_matchup(
     predicted_winner = (
         home_meta["full_name"] if home_win_prob >= 0.5 else away_meta["full_name"]
     )
-    return {
+    response = {
         "matchup": f"{away_meta['abbreviation']} @ {home_meta['abbreviation']}",
         "home_team": home_meta["full_name"],
         "away_team": away_meta["full_name"],
@@ -111,6 +120,15 @@ def predict_matchup(
         "away_win_probability": away_win_prob,
         "predicted_winner": predicted_winner,
     }
+    elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+    print(f"[predict] end home={home} away={away} elapsed_ms={elapsed_ms:.2f}")
+    logger.info(
+        "predict_matchup end home=%s away=%s elapsed_ms=%.2f",
+        home,
+        away,
+        elapsed_ms,
+    )
+    return response
 
 
 def _load_player_prop_context() -> dict[str, Any]:
