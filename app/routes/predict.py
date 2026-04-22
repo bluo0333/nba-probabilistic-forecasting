@@ -8,7 +8,9 @@ from app.services import model_service
 router = APIRouter(prefix="/predict", tags=["predict"])
 
 
-def _run_matchup_prediction(home: str, away: str, game_date: str | None = None) -> MatchupPredictResponse:
+def _run_matchup_prediction(
+    home: str, away: str, game_date: str | None = None
+) -> MatchupPredictResponse:
     try:
         result = model_service.predict_matchup(home, away, game_date)
     except ValueError as exc:
@@ -18,7 +20,9 @@ def _run_matchup_prediction(home: str, away: str, game_date: str | None = None) 
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Unexpected prediction error: {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"Unexpected prediction error: {exc}"
+        ) from exc
     return MatchupPredictResponse(**result)
 
 

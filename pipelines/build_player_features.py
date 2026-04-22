@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 INPUT_PATH = Path(__file__).resolve().parents[1] / "data" / "player_game_stats.csv"
 OUTPUT_PATH = Path(__file__).resolve().parents[1] / "data" / "player_features.csv"
 

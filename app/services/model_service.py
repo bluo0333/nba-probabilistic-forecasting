@@ -15,7 +15,9 @@ MATCHUP_MODEL_PATH = PROJECT_ROOT / "models" / "logistic_model.pkl"
 
 PLAYER_FEATURES_PATH = PROJECT_ROOT / "data" / "player_features.csv"
 PLAYER_STATS_PATH = PROJECT_ROOT / "data" / "player_game_stats.csv"
-COMMON_PLAYER_INFO_PATH = PROJECT_ROOT / "data" / "raw" / "kaggle" / "csv" / "common_player_info.csv"
+COMMON_PLAYER_INFO_PATH = (
+    PROJECT_ROOT / "data" / "raw" / "kaggle" / "csv" / "common_player_info.csv"
+)
 
 PLAYER_PROP_MODEL_PATHS = {
     "points": PROJECT_ROOT / "models" / "points_model.pkl",
@@ -25,7 +27,13 @@ PLAYER_PROP_MODEL_PATHS = {
 PLAYER_PROP_MEAN_COLUMN_CANDIDATES = {
     "points": ["rolling_points_10", "points"],
     "rebounds": ["rolling_rebounds_10", "rebounds"],
-    "3ps": ["rolling_3pm_10", "rolling_fg3m_10", "rolling_threes_10", "threes_made", "fg3m"],
+    "3ps": [
+        "rolling_3pm_10",
+        "rolling_fg3m_10",
+        "rolling_threes_10",
+        "threes_made",
+        "fg3m",
+    ],
 }
 PLAYER_PROP_STAT_COLUMN_CANDIDATES = {
     "points": ["points", "pts"],
@@ -50,7 +58,9 @@ def load_matchup_model() -> Any:
     return _MATCHUP_MODEL
 
 
-def predict_matchup(home: str, away: str, game_date_text: str | None = None) -> dict[str, Any]:
+def predict_matchup(
+    home: str, away: str, game_date_text: str | None = None
+) -> dict[str, Any]:
     model = load_matchup_model()
 
     with get_connection() as conn:
@@ -66,12 +76,16 @@ def predict_matchup(home: str, away: str, game_date_text: str | None = None) -> 
         home_last_game = data_service.get_last_game_date(conn, home_id)
         away_last_game = data_service.get_last_game_date(conn, away_id)
 
-    game_date, home_rest_days, away_rest_days = feature_service.resolve_matchup_date_context(
-        home_last_game,
-        away_last_game,
-        game_date_text,
+    game_date, home_rest_days, away_rest_days = (
+        feature_service.resolve_matchup_date_context(
+            home_last_game,
+            away_last_game,
+            game_date_text,
+        )
     )
-    features = feature_service.build_matchup_features(home_state, away_state, home_rest_days, away_rest_days)
+    features = feature_service.build_matchup_features(
+        home_state, away_state, home_rest_days, away_rest_days
+    )
 
     try:
         home_win_prob = float(model.predict_proba(features)[:, 1][0])
@@ -79,7 +93,9 @@ def predict_matchup(home: str, away: str, game_date_text: str | None = None) -> 
         raise RuntimeError(f"Model inference failed: {exc}") from exc
 
     away_win_prob = 1.0 - home_win_prob
-    predicted_winner = home_meta["full_name"] if home_win_prob >= 0.5 else away_meta["full_name"]
+    predicted_winner = (
+        home_meta["full_name"] if home_win_prob >= 0.5 else away_meta["full_name"]
+    )
     return {
         "matchup": f"{away_meta['abbreviation']} @ {home_meta['abbreviation']}",
         "home_team": home_meta["full_name"],
@@ -103,8 +119,12 @@ def _load_player_prop_context() -> dict[str, Any]:
     if PLAYER_FEATURES_PATH.is_file():
         features_df = pd.read_csv(PLAYER_FEATURES_PATH)
         if "player_name" in features_df.columns:
-            features_df["player_name"] = features_df["player_name"].astype(str).str.strip()
-            features_df["player_name_norm"] = features_df["player_name"].map(feature_service.normalize_name)
+            features_df["player_name"] = (
+                features_df["player_name"].astype(str).str.strip()
+            )
+            features_df["player_name_norm"] = features_df["player_name"].map(
+                feature_service.normalize_name
+            )
             player_names.update(features_df["player_name"].dropna().tolist())
         if "date" in features_df.columns:
             features_df["date"] = pd.to_datetime(features_df["date"], errors="coerce")
@@ -113,7 +133,9 @@ def _load_player_prop_context() -> dict[str, Any]:
         stats_df = pd.read_csv(PLAYER_STATS_PATH)
         if "player_name" in stats_df.columns:
             stats_df["player_name"] = stats_df["player_name"].astype(str).str.strip()
-            stats_df["player_name_norm"] = stats_df["player_name"].map(feature_service.normalize_name)
+            stats_df["player_name_norm"] = stats_df["player_name"].map(
+                feature_service.normalize_name
+            )
             player_names.update(stats_df["player_name"].dropna().tolist())
         if "date" in stats_df.columns:
             stats_df["date"] = pd.to_datetime(stats_df["date"], errors="coerce")
@@ -146,7 +168,9 @@ def get_player_names() -> list[str]:
     return _load_player_prop_context()["players"]
 
 
-def predict_player_prop(player: str, prop_type: str, side: str, line: float, odds: float) -> dict[str, Any]:
+def predict_player_prop(
+    player: str, prop_type: str, side: str, line: float, odds: float
+) -> dict[str, Any]:
     context = _load_player_prop_context()
     prop_type_norm = str(prop_type).strip().lower()
     side_norm = str(side).strip().lower()
@@ -173,7 +197,9 @@ def predict_player_prop(player: str, prop_type: str, side: str, line: float, odd
         if latest_row is not None:
             model = models.get(prop_type_norm)
             if model is not None:
-                predicted_mean = feature_service.predict_mean_from_model(model, latest_row)
+                predicted_mean = feature_service.predict_mean_from_model(
+                    model, latest_row
+                )
                 if predicted_mean is not None:
                     mean_source = "model"
             if predicted_mean is None:
@@ -207,13 +233,19 @@ def predict_player_prop(player: str, prop_type: str, side: str, line: float, odd
     std_dev: float | None = None
     if player_series is not None and len(player_series) >= 2:
         std_dev = float(player_series.std(ddof=1))
-    if (std_dev is None or not math.isfinite(std_dev) or std_dev <= 0) and stats_df is not None:
+    if (
+        std_dev is None or not math.isfinite(std_dev) or std_dev <= 0
+    ) and stats_df is not None:
         global_col = feature_service.pick_existing_column(
             stats_df,
             PLAYER_PROP_STAT_COLUMN_CANDIDATES[prop_type_norm],
         )
         if global_col is not None:
-            global_std = float(pd.to_numeric(stats_df[global_col], errors="coerce").dropna().std(ddof=1))
+            global_std = float(
+                pd.to_numeric(stats_df[global_col], errors="coerce")
+                .dropna()
+                .std(ddof=1)
+            )
             if math.isfinite(global_std) and global_std > 0:
                 std_dev = global_std
 

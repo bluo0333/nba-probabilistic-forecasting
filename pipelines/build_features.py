@@ -22,7 +22,7 @@ def main():
         ORDER BY game_date
     """).df()
 
-    #=============================================
+    # =============================================
     # Build MOV-Adjusted Elo
 
     INITIAL_ELO = 1500
@@ -65,8 +65,7 @@ def main():
         if current_season is not None and season != current_season:
             for team in elo_ratings:
                 elo_ratings[team] = (
-                    CARRYOVER * elo_ratings[team] +
-                    (1 - CARRYOVER) * INITIAL_ELO
+                    CARRYOVER * elo_ratings[team] + (1 - CARRYOVER) * INITIAL_ELO
                 )
 
         current_season = season
@@ -90,20 +89,20 @@ def main():
 
         point_diff = abs(row["pts_home"] - row["pts_away"])
 
-        mov_multiplier = (
-            np.log(point_diff + 1) *
-            (2.2 / ((R_home - R_away) * 0.001 + 2.2))
+        mov_multiplier = np.log(point_diff + 1) * (
+            2.2 / ((R_home - R_away) * 0.001 + 2.2)
         )
 
         elo_ratings[home] = R_home + K * mov_multiplier * (actual_home - expected_home)
-        elo_ratings[away] = R_away + K * mov_multiplier * ((1 - actual_home) - (1 - expected_home))
+        elo_ratings[away] = R_away + K * mov_multiplier * (
+            (1 - actual_home) - (1 - expected_home)
+        )
 
     games_full["home_elo_pre"] = home_elo_pre
     games_full["away_elo_pre"] = away_elo_pre
     games_full["elo_diff"] = games_full["home_elo_pre"] - games_full["away_elo_pre"]
 
-
-    #=============================================
+    # =============================================
     # Load Rolling Feature Data
 
     print("Loading rolling feature data...")
@@ -114,11 +113,10 @@ def main():
     df = df.merge(
         games_full[["game_id", "home_elo_pre", "away_elo_pre", "elo_diff"]],
         on="game_id",
-        how="inner"
+        how="inner",
     )
 
-
-    #=============================================
+    # =============================================
     # Rest Day Features
 
     print("Computing rest day features...")
@@ -133,26 +131,18 @@ def main():
         ORDER BY team_id, game_date
     """).df()
 
-    team_games["prev_game_date"] = (
-        team_games.groupby("team_id")["game_date"].shift(1)
-    )
+    team_games["prev_game_date"] = team_games.groupby("team_id")["game_date"].shift(1)
 
     team_games["rest_days"] = (
         team_games["game_date"] - team_games["prev_game_date"]
     ).dt.days
 
     home_rest = team_games[["game_id", "team_id", "rest_days"]].rename(
-        columns={
-            "team_id": "team_id_home",
-            "rest_days": "home_rest_days"
-        }
+        columns={"team_id": "team_id_home", "rest_days": "home_rest_days"}
     )
 
     away_rest = team_games[["game_id", "team_id", "rest_days"]].rename(
-        columns={
-            "team_id": "team_id_away",
-            "rest_days": "away_rest_days"
-        }
+        columns={"team_id": "team_id_away", "rest_days": "away_rest_days"}
     )
 
     df = df.merge(home_rest, on=["game_id", "team_id_home"], how="left")
@@ -164,7 +154,7 @@ def main():
     df["away_b2b"] = (df["away_rest_days"] <= 1).astype(int)
     df["b2b_diff"] = df["home_b2b"] - df["away_b2b"]
 
-    #=============================================
+    # =============================================
     # Pace-Adjusted Efficiency Features
 
     print("Computing pace-adjusted efficiency features...")
@@ -190,23 +180,37 @@ def main():
     """).df()
 
     pace_games["possessions"] = 0.5 * (
-        (pace_games["fga_home"] + 0.44 * pace_games["fta_home"] - pace_games["oreb_home"] + pace_games["tov_home"]) +
-        (pace_games["fga_away"] + 0.44 * pace_games["fta_away"] - pace_games["oreb_away"] + pace_games["tov_away"])
+        (
+            pace_games["fga_home"]
+            + 0.44 * pace_games["fta_home"]
+            - pace_games["oreb_home"]
+            + pace_games["tov_home"]
+        )
+        + (
+            pace_games["fga_away"]
+            + 0.44 * pace_games["fta_away"]
+            - pace_games["oreb_away"]
+            + pace_games["tov_away"]
+        )
     )
 
-    home_eff_long = pace_games[["game_id", "game_date", "team_id_home", "pts_home", "pts_away", "possessions"]].rename(
+    home_eff_long = pace_games[
+        ["game_id", "game_date", "team_id_home", "pts_home", "pts_away", "possessions"]
+    ].rename(
         columns={
             "team_id_home": "team_id",
             "pts_home": "points_for",
-            "pts_away": "points_against"
+            "pts_away": "points_against",
         }
     )
 
-    away_eff_long = pace_games[["game_id", "game_date", "team_id_away", "pts_away", "pts_home", "possessions"]].rename(
+    away_eff_long = pace_games[
+        ["game_id", "game_date", "team_id_away", "pts_away", "pts_home", "possessions"]
+    ].rename(
         columns={
             "team_id_away": "team_id",
             "pts_away": "points_for",
-            "pts_home": "points_against"
+            "pts_home": "points_against",
         }
     )
 
@@ -229,7 +233,9 @@ def main():
     team_eff["drtg_last10"] = 100 * team_eff["pa_last10"] / team_eff["poss_last10"]
     team_eff["netrtg_last10"] = team_eff["ortg_last10"] - team_eff["drtg_last10"]
 
-    team_eff.loc[team_eff["poss_last10"] <= 0, ["ortg_last10", "drtg_last10", "netrtg_last10"]] = np.nan
+    team_eff.loc[
+        team_eff["poss_last10"] <= 0, ["ortg_last10", "drtg_last10", "netrtg_last10"]
+    ] = np.nan
 
     home_eff = team_eff[["game_id", "team_id", "netrtg_last10"]].rename(
         columns={"team_id": "team_id_home", "netrtg_last10": "home_netrtg_last10"}
@@ -244,7 +250,7 @@ def main():
 
     df["netrtg_diff_last10"] = df["home_netrtg_last10"] - df["away_netrtg_last10"]
 
-    #=============================================
+    # =============================================
     # Rolling Four Factors Features
 
     print("Computing rolling Four Factors features...")
@@ -352,13 +358,23 @@ def main():
 
     ff_long.loc[ff_long["fga_last10"] <= 0, ["efg_last10", "ftr_last10"]] = np.nan
     ff_long.loc[
-        (ff_long["fga_last10"] + 0.44 * ff_long["fta_last10"] + ff_long["tov_last10"]) <= 0,
+        (ff_long["fga_last10"] + 0.44 * ff_long["fta_last10"] + ff_long["tov_last10"])
+        <= 0,
         "tov_pct_last10",
     ] = np.nan
-    ff_long.loc[(ff_long["oreb_last10"] + ff_long["opp_dreb_last10"]) <= 0, "orb_pct_last10"] = np.nan
+    ff_long.loc[
+        (ff_long["oreb_last10"] + ff_long["opp_dreb_last10"]) <= 0, "orb_pct_last10"
+    ] = np.nan
 
     home_ff = ff_long[
-        ["game_id", "team_id", "efg_last10", "tov_pct_last10", "orb_pct_last10", "ftr_last10"]
+        [
+            "game_id",
+            "team_id",
+            "efg_last10",
+            "tov_pct_last10",
+            "orb_pct_last10",
+            "ftr_last10",
+        ]
     ].rename(
         columns={
             "team_id": "team_id_home",
@@ -370,7 +386,14 @@ def main():
     )
 
     away_ff = ff_long[
-        ["game_id", "team_id", "efg_last10", "tov_pct_last10", "orb_pct_last10", "ftr_last10"]
+        [
+            "game_id",
+            "team_id",
+            "efg_last10",
+            "tov_pct_last10",
+            "orb_pct_last10",
+            "ftr_last10",
+        ]
     ].rename(
         columns={
             "team_id": "team_id_away",
@@ -389,25 +412,20 @@ def main():
     df["orb_pct_diff_last10"] = df["home_orb_pct_last10"] - df["away_orb_pct_last10"]
     df["ftr_diff_last10"] = df["home_ftr_last10"] - df["away_ftr_last10"]
 
-    #=============================================
+    # =============================================
     # Differential Features
 
     df["home_net_last5"] = (
-        df["home_avg_pts_for_last5"] -
-        df["home_avg_pts_against_last5"]
+        df["home_avg_pts_for_last5"] - df["home_avg_pts_against_last5"]
     )
 
     df["away_net_last5"] = (
-        df["away_avg_pts_for_last5"] -
-        df["away_avg_pts_against_last5"]
+        df["away_avg_pts_for_last5"] - df["away_avg_pts_against_last5"]
     )
 
     df["net_diff_last5"] = df["home_net_last5"] - df["away_net_last5"]
 
-    df["win_pct_diff_last5"] = (
-        df["home_win_pct_last5"] -
-        df["away_win_pct_last5"]
-    )
+    df["win_pct_diff_last5"] = df["home_win_pct_last5"] - df["away_win_pct_last5"]
 
     print("Dropping NaNs...")
     df = df.dropna()

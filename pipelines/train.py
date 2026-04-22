@@ -10,7 +10,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, log_loss, brier_score_loss
 
-
 TRAIN_TEST_SPLIT_DATE = "2018-01-01"
 TRAIN_START_DATE = "2010-01-01"
 RECENCY_HALFLIFE_YEARS = 5
@@ -67,7 +66,9 @@ def make_recency_weights(dates: pd.Series, halflife_years: float) -> np.ndarray:
     return np.power(0.5, ages_in_years / halflife_years).to_numpy()
 
 
-def tune_c_with_time_series_cv(X: pd.DataFrame, y: pd.Series, dates: pd.Series) -> float:
+def tune_c_with_time_series_cv(
+    X: pd.DataFrame, y: pd.Series, dates: pd.Series
+) -> float:
     candidate_c = [0.1, 0.2, 0.5, 1.0, 2.0]
     tscv = TimeSeriesSplit(n_splits=5)
     y_array = y.to_numpy()
@@ -111,7 +112,10 @@ def main():
     df["game_date"] = pd.to_datetime(df["game_date"])
     df = df.sort_values(["game_date", "game_id"]).reset_index(drop=True)
 
-    train = df[(df["game_date"] < TRAIN_TEST_SPLIT_DATE) & (df["game_date"] >= TRAIN_START_DATE)]
+    train = df[
+        (df["game_date"] < TRAIN_TEST_SPLIT_DATE)
+        & (df["game_date"] >= TRAIN_START_DATE)
+    ]
     test = df[df["game_date"] >= TRAIN_TEST_SPLIT_DATE]
 
     X_train = train[FEATURES]

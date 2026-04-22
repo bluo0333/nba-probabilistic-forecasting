@@ -8,7 +8,6 @@ from typing import Any
 import pandas as pd
 import requests
 
-
 BASE_URL = "https://api.balldontlie.io/v1/stats"
 OUTPUT_PATH = Path(__file__).resolve().parents[1] / "data" / "player_game_stats.csv"
 

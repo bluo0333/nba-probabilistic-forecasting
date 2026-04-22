@@ -67,7 +67,9 @@ def predict_mean_from_model(model: Any, row: pd.Series) -> float | None:
     return float(model.predict(frame)[0])
 
 
-def extract_stat_series(stats_df: pd.DataFrame, player_norm: str, column_candidates: list[str]):
+def extract_stat_series(
+    stats_df: pd.DataFrame, player_norm: str, column_candidates: list[str]
+):
     stat_col = pick_existing_column(stats_df, column_candidates)
     if stat_col is None:
         return None
@@ -84,7 +86,9 @@ def extract_stat_series(stats_df: pd.DataFrame, player_norm: str, column_candida
     return series
 
 
-def resolve_matchup_date_context(home_last_game, away_last_game, game_date_text: str | None) -> tuple[pd.Timestamp, int, int]:
+def resolve_matchup_date_context(
+    home_last_game, away_last_game, game_date_text: str | None
+) -> tuple[pd.Timestamp, int, int]:
     if game_date_text:
         try:
             game_date = pd.Timestamp(game_date_text)
@@ -106,4 +110,6 @@ def build_matchup_features(
     home_rest_days: int,
     away_rest_days: int,
 ) -> pd.DataFrame:
-    return matchup_pipeline.build_feature_row(home_state, away_state, home_rest_days, away_rest_days)
+    return matchup_pipeline.build_feature_row(
+        home_state, away_state, home_rest_days, away_rest_days
+    )

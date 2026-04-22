@@ -4,7 +4,6 @@ from pathlib import Path
 
 import duckdb
 
-
 DB_RELATIVE_PATH = Path("data") / "nba.duckdb"
 
 REQUIRED_TABLES: dict[str, set[str]] = {

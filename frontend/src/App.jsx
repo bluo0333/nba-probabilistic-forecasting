@@ -62,25 +62,49 @@ export default function App() {
   };
 
   return (
-    <main style={{ maxWidth: 640, margin: "40px auto", padding: "0 16px", fontFamily: "sans-serif" }}>
+    <main
+      style={{
+        maxWidth: 640,
+        margin: "40px auto",
+        padding: "0 16px",
+        fontFamily: "sans-serif",
+      }}
+    >
       <h1 style={{ marginBottom: 8 }}>NBA Matchup Predictor</h1>
-      <p style={{ marginTop: 0, color: "#666" }}>Select two teams and run a quick prediction.</p>
+      <p style={{ marginTop: 0, color: "#666" }}>
+        Select two teams and run a quick prediction.
+      </p>
 
       {loadingTeams ? <p>Loading teams...</p> : null}
 
       {!loadingTeams ? (
         <section style={{ display: "grid", gap: 12 }}>
-          <TeamSelector label="Team A (Home)" teams={teams} value={home} onChange={setHome} />
-          <TeamSelector label="Team B (Away)" teams={teams} value={away} onChange={setAway} />
-          <button type="button" onClick={getPrediction} disabled={loadingPrediction}>
+          <TeamSelector
+            label="Team A (Home)"
+            teams={teams}
+            value={home}
+            onChange={setHome}
+          />
+          <TeamSelector
+            label="Team B (Away)"
+            teams={teams}
+            value={away}
+            onChange={setAway}
+          />
+          <button
+            type="button"
+            onClick={getPrediction}
+            disabled={loadingPrediction}
+          >
             {loadingPrediction ? "Predicting..." : "Predict"}
           </button>
         </section>
       ) : null}
 
-      {error ? <p style={{ color: "#b00020", marginTop: 16 }}>{error}</p> : null}
+      {error ? (
+        <p style={{ color: "#b00020", marginTop: 16 }}>{error}</p>
+      ) : null}
       <PredictionCard prediction={prediction} />
     </main>
   );
 }
-

@@ -1,126 +1,106 @@
-# NBA Probabilistic Forecasting Platform
+# NBA Probabilistic Forecasting
 
-End-to-end NBA analytics project for:
+## Overview
+Production-style NBA forecasting project with:
 
-- game outcome probability modeling
-- matchup prediction (CLI + local web app)
-- player prop feature/model pipelines
-- play-by-play to player-game stat table generation in DuckDB
+- historical data ingestion into DuckDB
+- leakage-safe feature engineering for matchup modeling
+- sklearn-based probability prediction for game outcomes
+- player prop data pipelines and scoring
+- FastAPI backend with React (Vite) frontend integration
+
+The project is structured to keep pipeline logic, model inference, database access, and API routing separated and reusable.
+
+## Tech Stack
+- Python 3
+- FastAPI
+- DuckDB
+- scikit-learn + joblib
+- pandas + numpy + scipy
+- React + Vite
+
+## Architecture
+```text
+                +----------------------+
+                |   React Frontend     |
+                |   (Vite, fetch API)  |
+                +----------+-----------+
+                           |
+                           | HTTP (JSON)
+                           v
+                +----------+-----------+
+                |      FastAPI App     |
+                |      app/main.py     |
+                +----+----------+------+
+                     |          |
+          +----------+          +------------------+
+          v                                     v
++---------------------+              +----------------------+
+|   Route Layer       |              |   Schema Layer       |
+| app/routes/*.py     |              | app/schemas/*.py     |
++----------+----------+              +----------------------+
+           |
+           v
++----------+----------+
+|   Service Layer     |
+| app/services/*.py   |
+| - data_service      |
+| - feature_service   |
+| - model_service     |
++----------+----------+
+           |
+           v
++----------+----------+      +-------------------------+
+| DuckDB (data/*.duckdb)|    | Models (models/*.pkl)   |
+| SQL + historical data |    | sklearn/joblib artifacts|
++----------------------+      +-------------------------+
+
+Pipelines (pipelines/*.py) feed DuckDB tables and model artifacts.
+```
 
 ## Features
+- Matchup probability API:
+  - `POST /predict/matchup`
+  - `GET /predict/quick?home=...&away=...`
+- Teams API:
+  - `GET /teams/`
+- Player props API:
+  - `GET /props/players`
+  - `POST /props/predict`
+- Historical ingestion and feature pipelines:
+  - `pipelines/ingest.py`
+  - `pipelines/build_features.py`
+  - `pipelines/train.py`
+- Player workflow pipelines:
+  - `pipelines/ingest_balldontlie.py`
+  - `pipelines/build_player_features.py`
+  - `pipelines/train_player_model.py`
+  - `pipelines/predict_player_props.py`
+- Play-by-play aggregation:
+  - `pipelines/build_player_game_stats.py`
 
-### Game Forecasting
+## Model Performance
+Current out-of-sample game model performance (2018-2023):
 
-- Ingests historical NBA tables from Kaggle SQLite into DuckDB.
-- Builds leakage-safe team features:
-  - MOV-adjusted Elo with offseason regression
-  - rolling form (last 5 games)
-  - pace-adjusted net rating (last 10)
-  - rolling Four Factors (last 10)
-  - rest / back-to-back fatigue features
-- Trains calibrated logistic regression with time-series CV and recency weighting.
-- Predicts matchup win probabilities via CLI (`predict_matchup.py`).
+- Log Loss: `0.633`
+- Brier Score: `0.221`
+- Accuracy: `64.4%`
 
-### Player Props
-
-- Ingests player game logs from `balldontlie` into `data/player_game_stats.csv`.
-- Builds rolling player features (`player_features.csv`).
-- Trains regression models for:
-  - points
-  - assists
-  - rebounds
-  - threes made
-- Scores sportsbook lines from `data/player_lines_input.csv` and outputs:
-  - predicted mean
-  - model probability over
-  - sportsbook implied probability
-  - edge
-
-### Play-by-Play Player Stat Build (New)
-
-- Builds a DuckDB `player_game_stats` table from play-by-play event data.
-- Correctly attributes:
-  - points to `player1_id`
-  - rebounds to `player1_id`
-  - assists to `player2_id` on made field goals
-- Includes metadata join (`player_name`, `position`, `team_id`) from `common_player_info` / `player`.
-- Deduplicates by `(game_id, eventnum)` before aggregation to prevent double counting.
-
-### API + Frontend
-
-- FastAPI backend with router/service/schema architecture.
-- React + Vite frontend for matchup prediction.
-- JSON endpoints for teams and quick matchup scoring.
-
-## Project Structure
-
-`pipelines/`
-
-- `ingest.py`
-- `build_features.py`
-- `train.py`
-- `predict_matchup.py`
-- `ingest_balldontlie.py`
-- `build_player_features.py`
-- `build_player_features_duckdb.py`
-- `train_player_model.py`
-- `predict_player_props.py`
-- `build_player_game_stats.py`
-
-`app/`
-
-- `main.py`
-- `routes/`
-- `services/`
-- `schemas/`
-- `db/`
-
-`frontend/`
-
-- `src/App.jsx`
-- `src/components/TeamSelector.jsx`
-- `src/components/PredictionCard.jsx`
-
-`data/`
-
-- `nba.duckdb`
-- `raw/kaggle/` (source datasets)
-- generated CSV artifacts for player pipelines
-
-`models/`
-
-- `logistic_model.pkl` (game model)
-- player prop models (`points_model.pkl`, `assists_model.pkl`, `rebounds_model.pkl`, `threes_model.pkl`)
-
-`sql/`
-
-- `build_player_features.sql`
+Baseline (always pick home team): `56.5%` accuracy.
 
 ## Setup
-
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Game Model Workflow
-
-```powershell
-python pipelines/ingest.py
-python pipelines/build_features.py
-python pipelines/train.py
-python pipelines/predict_matchup.py --home IND --away LAL
-```
-
 ## Run Backend
-
 ```powershell
 uvicorn app.main:app --host 0.0.0.0 --port 10000
 ```
 
 ## Run Frontend
-
 ```powershell
 cd frontend
 copy .env.example .env
@@ -128,8 +108,13 @@ npm install
 npm run dev
 ```
 
-## API Endpoints
+Frontend environment variable:
 
+```env
+VITE_API_BASE=http://localhost:8000
+```
+
+## API Endpoints
 ```text
 GET  /health
 GET  /teams/
@@ -139,79 +124,3 @@ GET  /props/players
 POST /props/predict
 ```
 
-## Player Props Workflow (balldontlie)
-
-Optional API key:
-
-```powershell
-$env:BALLDONTLIE_API_KEY="your_key_here"
-```
-
-Run pipeline:
-
-```powershell
-python pipelines/ingest_balldontlie.py
-python pipelines/build_player_features.py
-python pipelines/train_player_model.py
-python pipelines/predict_player_props.py
-```
-
-Input lines file schema (`data/player_lines_input.csv`):
-
-- `player`
-- `stat` (`points`, `assists`, `rebounds`, `3ps`, `pra`)
-- `line`
-- `over_odds`
-- `under_odds`
-
-Output:
-
-- `data/player_prop_predictions.csv`
-
-## Build `player_game_stats` from Kaggle Play-by-Play
-
-`build_player_game_stats.py` expects these DuckDB tables:
-
-- `play_by_play`
-- `player`
-- `common_player_info`
-
-If they are not yet in `data/nba.duckdb`, load them from CSV first:
-
-```powershell
-@'
-import duckdb
-from pathlib import Path
-
-db = Path("data/nba.duckdb")
-csv_root = Path("data/raw/kaggle/csv")
-con = duckdb.connect(str(db))
-con.execute("CREATE OR REPLACE TABLE play_by_play AS SELECT * FROM read_csv_auto(?, header=true)", [str(csv_root / "play_by_play.csv")])
-con.execute("CREATE OR REPLACE TABLE player AS SELECT * FROM read_csv_auto(?, header=true)", [str(csv_root / "player.csv")])
-con.execute("CREATE OR REPLACE TABLE common_player_info AS SELECT * FROM read_csv_auto(?, header=true)", [str(csv_root / "common_player_info.csv")])
-con.close()
-'@ | python -
-```
-
-Then build:
-
-```powershell
-python pipelines/build_player_game_stats.py
-```
-
-## Build Leakage-Safe `player_features` in DuckDB
-
-From `player_game_stats`, create a model-ready `player_features` table with
-rolling/expanding windows that exclude the current game:
-
-```powershell
-python pipelines/build_player_features_duckdb.py
-```
-
-## Current Out-of-Sample Game Model Performance (2018-2023)
-
-- Log Loss: `0.633`
-- Brier Score: `0.221`
-- Accuracy: `64.4%`
-
-Baseline (always pick home team): `56.5%` accuracy.

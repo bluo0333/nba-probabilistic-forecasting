@@ -2,7 +2,6 @@ from pathlib import Path
 
 import duckdb
 
-
 TABLES_TO_INGEST = ("game", "line_score", "team", "other_stats")
 
 
@@ -22,9 +21,7 @@ def main() -> None:
         print(f"Attaching SQLite source: {sqlite_path}")
         conn.execute("INSTALL sqlite;")
         conn.execute("LOAD sqlite;")
-        conn.execute(
-            f"ATTACH '{str(sqlite_path)}' AS kaggle (TYPE sqlite);"
-        )
+        conn.execute(f"ATTACH '{str(sqlite_path)}' AS kaggle (TYPE sqlite);")
 
         conn.execute("BEGIN TRANSACTION;")
         in_transaction = True

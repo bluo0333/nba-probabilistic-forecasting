@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from app.schemas.predict_schema import PlayerPropPredictRequest, PlayerPropPredictResponse
+from app.schemas.predict_schema import (
+    PlayerPropPredictRequest,
+    PlayerPropPredictResponse,
+)
 from app.services import model_service
 
 router = APIRouter(prefix="/props", tags=["props"])
@@ -13,7 +16,9 @@ def list_players() -> list[str]:
     try:
         return model_service.get_player_names()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to load players: {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"Failed to load players: {exc}"
+        ) from exc
 
 
 @router.post("/predict", response_model=PlayerPropPredictResponse)
@@ -33,6 +38,7 @@ def predict_player_prop(payload: PlayerPropPredictRequest) -> PlayerPropPredictR
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to score player prop: {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"Failed to score player prop: {exc}"
+        ) from exc
     return PlayerPropPredictResponse(**result)
-

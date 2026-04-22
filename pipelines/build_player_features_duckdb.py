@@ -4,7 +4,6 @@ from pathlib import Path
 
 import duckdb
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = REPO_ROOT / "data" / "nba.duckdb"
 SQL_PATH = REPO_ROOT / "sql" / "build_player_features.sql"
@@ -76,8 +75,7 @@ def validate_output(conn: duckdb.DuckDBPyConnection) -> tuple[int, int]:
         )
 
     row_count = conn.execute("SELECT COUNT(*) FROM player_features").fetchone()[0]
-    null_count = conn.execute(
-        """
+    null_count = conn.execute("""
         SELECT COUNT(*)
         FROM player_features
         WHERE avg_pts_last5 IS NULL
@@ -85,8 +83,7 @@ def validate_output(conn: duckdb.DuckDBPyConnection) -> tuple[int, int]:
            OR avg_reb_last5 IS NULL
            OR avg_ast_last5 IS NULL
            OR avg_pts_season IS NULL
-        """
-    ).fetchone()[0]
+        """).fetchone()[0]
     return int(row_count), int(null_count)
 
 
@@ -108,7 +105,9 @@ def main() -> None:
             raise RuntimeError(
                 f"Output validation failed: found {null_count} NULL feature rows."
             )
-        print(f"Built player_features with {row_count} model-ready rows (0 NULL feature rows).")
+        print(
+            f"Built player_features with {row_count} model-ready rows (0 NULL feature rows)."
+        )
     finally:
         conn.close()
 

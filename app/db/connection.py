@@ -26,4 +26,3 @@ def get_connection() -> Iterator[duckdb.DuckDBPyConnection]:
         yield conn
     finally:
         conn.close()
-

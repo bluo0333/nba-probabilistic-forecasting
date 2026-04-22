@@ -45,9 +45,15 @@ FEATURES = [
 
 
 def parse_args() -> Any:
-    parser = ArgumentParser(description="Predict home win probability for an NBA matchup.")
-    parser.add_argument("--home", required=True, help="Home team abbreviation or full name (e.g. IND)")
-    parser.add_argument("--away", required=True, help="Away team abbreviation or full name (e.g. LAL)")
+    parser = ArgumentParser(
+        description="Predict home win probability for an NBA matchup."
+    )
+    parser.add_argument(
+        "--home", required=True, help="Home team abbreviation or full name (e.g. IND)"
+    )
+    parser.add_argument(
+        "--away", required=True, help="Away team abbreviation or full name (e.g. LAL)"
+    )
     parser.add_argument(
         "--game-date",
         default=None,
@@ -61,8 +67,7 @@ def normalize(s: str) -> str:
 
 
 def resolve_team_id(conn: duckdb.DuckDBPyConnection, team_query: str) -> str:
-    teams = conn.execute(
-        """
+    teams = conn.execute("""
         SELECT
             id,
             full_name,
@@ -70,8 +75,7 @@ def resolve_team_id(conn: duckdb.DuckDBPyConnection, team_query: str) -> str:
             nickname,
             city
         FROM team
-        """
-    ).df()
+        """).df()
 
     q = normalize(team_query)
     exact = teams[
@@ -185,8 +189,12 @@ def build_feature_row(
 ) -> pd.DataFrame:
     home_b2b = int(home_rest_days <= 1)
     away_b2b = int(away_rest_days <= 1)
-    home_net_last5 = home_state["avg_pts_for_last5"] - home_state["avg_pts_against_last5"]
-    away_net_last5 = away_state["avg_pts_for_last5"] - away_state["avg_pts_against_last5"]
+    home_net_last5 = (
+        home_state["avg_pts_for_last5"] - home_state["avg_pts_against_last5"]
+    )
+    away_net_last5 = (
+        away_state["avg_pts_for_last5"] - away_state["avg_pts_against_last5"]
+    )
 
     row = {
         "home_elo_pre": home_state["elo_pre"],
@@ -218,8 +226,10 @@ def build_feature_row(
         "b2b_diff": home_b2b - away_b2b,
         "netrtg_diff_last10": home_state["netrtg_last10"] - away_state["netrtg_last10"],
         "efg_diff_last10": home_state["efg_last10"] - away_state["efg_last10"],
-        "tov_pct_diff_last10": home_state["tov_pct_last10"] - away_state["tov_pct_last10"],
-        "orb_pct_diff_last10": home_state["orb_pct_last10"] - away_state["orb_pct_last10"],
+        "tov_pct_diff_last10": home_state["tov_pct_last10"]
+        - away_state["tov_pct_last10"],
+        "orb_pct_diff_last10": home_state["orb_pct_last10"]
+        - away_state["orb_pct_last10"],
         "ftr_diff_last10": home_state["ftr_last10"] - away_state["ftr_last10"],
     }
     return pd.DataFrame([row], columns=FEATURES)
@@ -262,7 +272,9 @@ def main() -> None:
     x = build_feature_row(home_state, away_state, home_rest_days, away_rest_days)
     home_win_prob = float(model.predict_proba(x)[:, 1][0])
     away_win_prob = 1.0 - home_win_prob
-    predicted_winner = home_meta["full_name"] if home_win_prob >= 0.5 else away_meta["full_name"]
+    predicted_winner = (
+        home_meta["full_name"] if home_win_prob >= 0.5 else away_meta["full_name"]
+    )
 
     print(
         f"Matchup: {away_meta['full_name']} ({away_meta['abbreviation']}) at "

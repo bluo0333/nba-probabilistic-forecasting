@@ -7,7 +7,6 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error
 
-
 FEATURES_PATH = Path(__file__).resolve().parents[1] / "data" / "player_features.csv"
 MODELS_DIR = Path(__file__).resolve().parents[1] / "models"
 

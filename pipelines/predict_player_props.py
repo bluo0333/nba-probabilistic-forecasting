@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FEATURES_PATH = REPO_ROOT / "data" / "player_features.csv"
 PLAYER_STATS_PATH = REPO_ROOT / "data" / "player_game_stats.csv"
@@ -95,7 +94,9 @@ def load_lines_input(path: Path) -> pd.DataFrame:
     return df
 
 
-def get_latest_feature_row(features_df: pd.DataFrame, player_name: str) -> pd.Series | None:
+def get_latest_feature_row(
+    features_df: pd.DataFrame, player_name: str
+) -> pd.Series | None:
     """Return latest available feature row for a player."""
     norm_name = normalize_player_name(player_name)
     player_rows = features_df[features_df["player_name_norm"] == norm_name].copy()
@@ -105,7 +106,9 @@ def get_latest_feature_row(features_df: pd.DataFrame, player_name: str) -> pd.Se
     return player_rows.iloc[0]
 
 
-def build_std_tables(stats_df: pd.DataFrame) -> tuple[dict[str, dict[str, float]], dict[str, float]]:
+def build_std_tables(
+    stats_df: pd.DataFrame,
+) -> tuple[dict[str, dict[str, float]], dict[str, float]]:
     """Build player-level and global std-dev lookup tables for stats."""
     frame = stats_df.copy()
     frame["player_name_norm"] = frame["player_name"].map(normalize_player_name)
@@ -148,7 +151,9 @@ def resolve_std(
     return float(std_value)
 
 
-def predict_stat_mean(models: dict[str, Any], features: pd.DataFrame, stat: str) -> float:
+def predict_stat_mean(
+    models: dict[str, Any], features: pd.DataFrame, stat: str
+) -> float:
     """Predict expected value for one stat type."""
     if stat in {"points", "assists", "rebounds"}:
         return float(models[stat].predict(features)[0])
@@ -159,7 +164,9 @@ def predict_stat_mean(models: dict[str, Any], features: pd.DataFrame, stat: str)
         ast = float(models["assists"].predict(features)[0])
         reb = float(models["rebounds"].predict(features)[0])
         return pts + ast + reb
-    raise ValueError(f"Unsupported stat '{stat}'. Expected points/assists/rebounds/3ps/pra.")
+    raise ValueError(
+        f"Unsupported stat '{stat}'. Expected points/assists/rebounds/3ps/pra."
+    )
 
 
 def load_stats_for_std(path: Path) -> pd.DataFrame:
@@ -200,10 +207,14 @@ def main() -> None:
 
         feature_row = get_latest_feature_row(features_df, player_name)
         if feature_row is None:
-            print(f"Skipping row {idx}: player '{player_name}' not found in feature data.")
+            print(
+                f"Skipping row {idx}: player '{player_name}' not found in feature data."
+            )
             continue
 
-        feature_values = pd.DataFrame([feature_row[FEATURE_COLUMNS].to_dict()], columns=FEATURE_COLUMNS)
+        feature_values = pd.DataFrame(
+            [feature_row[FEATURE_COLUMNS].to_dict()], columns=FEATURE_COLUMNS
+        )
         if feature_values.isnull().any(axis=None):
             print(f"Skipping row {idx}: missing feature values for '{player_name}'.")
             continue
@@ -211,10 +222,14 @@ def main() -> None:
         try:
             predicted_mean = predict_stat_mean(models, feature_values, stat)
             std_dev = resolve_std(player_name, stat, player_std, global_std)
-            model_probability_over = float(1.0 - norm.cdf(line, loc=predicted_mean, scale=std_dev))
+            model_probability_over = float(
+                1.0 - norm.cdf(line, loc=predicted_mean, scale=std_dev)
+            )
             sportsbook_probability = float(american_to_implied_probability(over_odds))
         except Exception as exc:
-            print(f"Skipping row {idx}: could not score '{player_name}' {stat}. Error: {exc}")
+            print(
+                f"Skipping row {idx}: could not score '{player_name}' {stat}. Error: {exc}"
+            )
             continue
 
         edge = model_probability_over - sportsbook_probability

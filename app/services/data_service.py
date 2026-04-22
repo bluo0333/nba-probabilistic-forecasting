@@ -34,16 +34,14 @@ def team_conference(team_abbreviation: str) -> str:
 
 
 def get_teams(conn: duckdb.DuckDBPyConnection) -> list[dict[str, str]]:
-    rows = conn.execute(
-        """
+    rows = conn.execute("""
         SELECT
             CAST(id AS VARCHAR) AS id,
             CAST(abbreviation AS VARCHAR) AS abbreviation,
             CAST(full_name AS VARCHAR) AS full_name
         FROM team
         ORDER BY abbreviation
-        """
-    ).fetchall()
+        """).fetchall()
     return [
         {
             "id": team_id,
@@ -101,10 +99,11 @@ def get_team_metadata(
     )
 
 
-def get_latest_team_state(conn: duckdb.DuckDBPyConnection, team_id: str) -> dict[str, Any]:
+def get_latest_team_state(
+    conn: duckdb.DuckDBPyConnection, team_id: str
+) -> dict[str, Any]:
     return matchup_pipeline.latest_team_state(conn, team_id)
 
 
 def get_last_game_date(conn: duckdb.DuckDBPyConnection, team_id: str):
     return matchup_pipeline.last_game_date(conn, team_id)
-

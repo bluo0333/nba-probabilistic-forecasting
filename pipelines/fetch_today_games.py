@@ -11,7 +11,6 @@ import duckdb
 import pandas as pd
 import requests
 
-
 BASE_URL = "https://api.balldontlie.io/v1/games"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = REPO_ROOT / "data" / "nba.duckdb"
@@ -97,7 +96,9 @@ def normalize_game(raw_game: dict[str, Any]) -> dict[str, Any] | None:
         "team_id_away": away_id,
         "team_abbreviation_away": away_abbrev,
         "team_name_away": away_name,
-        "pts_away": safe_int(raw_game.get("visitor_team_score") or raw_game.get("away_team_score")),
+        "pts_away": safe_int(
+            raw_game.get("visitor_team_score") or raw_game.get("away_team_score")
+        ),
         "team_id_home": home_id,
         "team_abbreviation_home": home_abbrev,
         "team_name_home": home_name,
@@ -105,7 +106,9 @@ def normalize_game(raw_game: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def fetch_games_for_date(session: requests.Session, target_date: date) -> list[dict[str, Any]]:
+def fetch_games_for_date(
+    session: requests.Session, target_date: date
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     page: int | None = 1
     cursor: str | None = None
@@ -153,11 +156,12 @@ def fetch_games_for_date(session: requests.Session, target_date: date) -> list[d
     return rows
 
 
-def upsert_live_games(df: pd.DataFrame, target_date: date, db_path: Path, table_name: str) -> None:
+def upsert_live_games(
+    df: pd.DataFrame, target_date: date, db_path: Path, table_name: str
+) -> None:
     conn = duckdb.connect(str(db_path))
     try:
-        conn.execute(
-            f"""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS {table_name} (
                 game_id VARCHAR,
                 game_date DATE,
@@ -173,8 +177,7 @@ def upsert_live_games(df: pd.DataFrame, target_date: date, db_path: Path, table_
                 source VARCHAR,
                 updated_at TIMESTAMP
             )
-            """
-        )
+            """)
 
         conn.execute(
             f"DELETE FROM {table_name} WHERE CAST(game_date AS DATE) = ?",
@@ -186,8 +189,7 @@ def upsert_live_games(df: pd.DataFrame, target_date: date, db_path: Path, table_
             insert_df["source"] = "balldontlie"
             insert_df["updated_at"] = pd.Timestamp.now()
             conn.register("live_games_batch", insert_df)
-            conn.execute(
-                f"""
+            conn.execute(f"""
                 INSERT INTO {table_name}
                 SELECT
                     game_id,
@@ -204,8 +206,7 @@ def upsert_live_games(df: pd.DataFrame, target_date: date, db_path: Path, table_
                     source,
                     updated_at
                 FROM live_games_batch
-                """
-            )
+                """)
             conn.unregister("live_games_batch")
     finally:
         conn.close()
@@ -248,7 +249,9 @@ def main() -> None:
         games = fetch_games_for_date(session, target_date=target_date)
 
     df = pd.DataFrame(games)
-    upsert_live_games(df, target_date=target_date, db_path=db_path, table_name=table_name)
+    upsert_live_games(
+        df, target_date=target_date, db_path=db_path, table_name=table_name
+    )
     print(
         f"Saved {len(df)} game(s) for {target_date.isoformat()} "
         f"to {db_path}::{table_name}"

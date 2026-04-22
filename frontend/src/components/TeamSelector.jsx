@@ -13,4 +13,3 @@ export default function TeamSelector({ label, teams, value, onChange }) {
     </label>
   );
 }
-
