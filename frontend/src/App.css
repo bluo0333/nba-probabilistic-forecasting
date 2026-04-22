@@ -1,0 +1,31 @@
+.teams-loading {
+  min-height: 184px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.teams-loading__spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: teams-loading-spin 0.8s linear infinite;
+}
+
+.teams-loading__message {
+  margin: 0;
+  color: #6b7280;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+@keyframes teams-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

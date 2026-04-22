@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import "./App.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -49,6 +50,7 @@ export default function App() {
   const [selectedAway, setSelectedAway] = useState("");
   const [prediction, setPrediction] = useState(null);
   const [loadingTeams, setLoadingTeams] = useState(false);
+  const [isSlowLoad, setIsSlowLoad] = useState(false);
   const [loadingPrediction, setLoadingPrediction] = useState(false);
   const [error, setError] = useState("");
   const [selectionError, setSelectionError] = useState("");
@@ -79,6 +81,19 @@ export default function App() {
 
     loadTeams();
   }, []);
+
+  useEffect(() => {
+    if (!loadingTeams) {
+      setIsSlowLoad(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setIsSlowLoad(true);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [loadingTeams]);
 
   const filteredTeams = useMemo(() => {
     const query = teamSearch.trim().toLowerCase();
@@ -206,146 +221,153 @@ export default function App() {
           Select two teams and run a prediction
         </p>
 
-        <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>
-              Team A (Home)
-            </span>
-            <button
-              type="button"
-              onClick={() => openTeamModal("home")}
-              disabled={loadingTeams}
-              style={{
-                width: "100%",
-                textAlign: "left",
-                padding: "10px 12px",
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                backgroundColor: "#ffffff",
-                color: selectedHome ? "#111827" : "#9ca3af",
-                fontSize: 14,
-                cursor: loadingTeams ? "not-allowed" : "pointer",
-              }}
-            >
-              {selectedHome || "Select Team"}
-            </button>
-          </div>
-
-          <div style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>
-              Team B (Away)
-            </span>
-            <button
-              type="button"
-              onClick={() => openTeamModal("away")}
-              disabled={loadingTeams}
-              style={{
-                width: "100%",
-                textAlign: "left",
-                padding: "10px 12px",
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                backgroundColor: "#ffffff",
-                color: selectedAway ? "#111827" : "#9ca3af",
-                fontSize: 14,
-                cursor: loadingTeams ? "not-allowed" : "pointer",
-              }}
-            >
-              {selectedAway || "Select Team"}
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={handlePredict}
-            disabled={loadingPrediction || loadingTeams}
-            onMouseEnter={() => setButtonHover(true)}
-            onMouseLeave={() => setButtonHover(false)}
-            style={{
-              width: "100%",
-              border: "none",
-              borderRadius: 8,
-              padding: "11px 12px",
-              backgroundColor: buttonBackground,
-              color: "#ffffff",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor:
-                loadingPrediction || loadingTeams ? "not-allowed" : "pointer",
-              transition: "background-color 120ms ease-in-out",
-              marginTop: 2,
-            }}
-          >
-            {loadingPrediction ? "Predicting..." : "Predict"}
-          </button>
-        </div>
-
         {loadingTeams ? (
-          <p style={{ marginTop: 12, color: "#6b7280", textAlign: "center" }}>
-            Loading teams...
-          </p>
-        ) : null}
-
-        {selectionError ? (
-          <p
-            style={{
-              marginTop: 12,
-              marginBottom: 0,
-              color: "#dc2626",
-              textAlign: "center",
-              fontSize: 13,
-            }}
-          >
-            {selectionError}
-          </p>
-        ) : null}
-
-        {error ? (
-          <p
-            style={{
-              marginTop: 12,
-              marginBottom: 0,
-              color: "#dc2626",
-              textAlign: "center",
-              fontSize: 14,
-            }}
-          >
-            {error}
-          </p>
-        ) : null}
-
-        {prediction ? (
-          <section
-            style={{
-              marginTop: 16,
-              backgroundColor: "#f3f4f6",
-              borderRadius: 10,
-              padding: 14,
-              textAlign: "center",
-            }}
-          >
-            <h2
-              style={{
-                margin: 0,
-                fontSize: 18,
-                color: "#111827",
-              }}
-            >
-              {prediction.matchup}
-            </h2>
-            <p style={{ margin: "10px 0 0", color: "#374151", fontSize: 14 }}>
-              {prediction.home_team}:{" "}
-              {asPercent(prediction.home_win_probability)}
+          <div className="teams-loading" role="status" aria-live="polite">
+            <span className="teams-loading__spinner" aria-hidden="true" />
+            <p className="teams-loading__message">
+              {isSlowLoad
+                ? "Waking up server (first request may take ~10-20 seconds)"
+                : "Loading teams..."}
             </p>
-            <p style={{ margin: "6px 0 0", color: "#374151", fontSize: 14 }}>
-              {prediction.away_team}:{" "}
-              {asPercent(prediction.away_win_probability)}
-            </p>
-            <p style={{ margin: "10px 0 0", color: "#111827", fontSize: 14 }}>
-              Predicted winner: <strong>{prediction.predicted_winner}</strong>
-            </p>
-          </section>
-        ) : null}
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>
+                  Team A (Home)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => openTeamModal("home")}
+                  disabled={loadingTeams}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                    backgroundColor: "#ffffff",
+                    color: selectedHome ? "#111827" : "#9ca3af",
+                    fontSize: 14,
+                    cursor: loadingTeams ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {selectedHome || "Select Team"}
+                </button>
+              </div>
+
+              <div style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>
+                  Team B (Away)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => openTeamModal("away")}
+                  disabled={loadingTeams}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                    backgroundColor: "#ffffff",
+                    color: selectedAway ? "#111827" : "#9ca3af",
+                    fontSize: 14,
+                    cursor: loadingTeams ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {selectedAway || "Select Team"}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handlePredict}
+                disabled={loadingPrediction || loadingTeams}
+                onMouseEnter={() => setButtonHover(true)}
+                onMouseLeave={() => setButtonHover(false)}
+                style={{
+                  width: "100%",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "11px 12px",
+                  backgroundColor: buttonBackground,
+                  color: "#ffffff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor:
+                    loadingPrediction || loadingTeams ? "not-allowed" : "pointer",
+                  transition: "background-color 120ms ease-in-out",
+                  marginTop: 2,
+                }}
+              >
+                {loadingPrediction ? "Predicting..." : "Predict"}
+              </button>
+            </div>
+
+            {selectionError ? (
+              <p
+                style={{
+                  marginTop: 12,
+                  marginBottom: 0,
+                  color: "#dc2626",
+                  textAlign: "center",
+                  fontSize: 13,
+                }}
+              >
+                {selectionError}
+              </p>
+            ) : null}
+
+            {error ? (
+              <p
+                style={{
+                  marginTop: 12,
+                  marginBottom: 0,
+                  color: "#dc2626",
+                  textAlign: "center",
+                  fontSize: 14,
+                }}
+              >
+                {error}
+              </p>
+            ) : null}
+
+            {prediction ? (
+              <section
+                style={{
+                  marginTop: 16,
+                  backgroundColor: "#f3f4f6",
+                  borderRadius: 10,
+                  padding: 14,
+                  textAlign: "center",
+                }}
+              >
+                <h2
+                  style={{
+                    margin: 0,
+                    fontSize: 18,
+                    color: "#111827",
+                  }}
+                >
+                  {prediction.matchup}
+                </h2>
+                <p style={{ margin: "10px 0 0", color: "#374151", fontSize: 14 }}>
+                  {prediction.home_team}:{" "}
+                  {asPercent(prediction.home_win_probability)}
+                </p>
+                <p style={{ margin: "6px 0 0", color: "#374151", fontSize: 14 }}>
+                  {prediction.away_team}:{" "}
+                  {asPercent(prediction.away_win_probability)}
+                </p>
+                <p style={{ margin: "10px 0 0", color: "#111827", fontSize: 14 }}>
+                  Predicted winner: <strong>{prediction.predicted_winner}</strong>
+                </p>
+              </section>
+            ) : null}
+          </>
+        )}
       </section>
 
       {modalOpen ? (
