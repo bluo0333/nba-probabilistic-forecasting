@@ -8,11 +8,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routes.predict import router as predict_router
 from app.routes.props import router as props_router
 from app.routes.teams import router as teams_router
-from app.services import model_service
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    from app.services import model_service
+
     model_service.load_matchup_model()
     yield
 
