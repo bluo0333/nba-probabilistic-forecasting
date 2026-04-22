@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,7 @@ PLAYER_PROP_LABELS = {"points": "Points", "rebounds": "Rebounds", "3ps": "3PM"}
 
 _MATCHUP_MODEL: Any | None = None
 _PLAYER_PROP_CONTEXT: dict[str, Any] | None = None
+logger = logging.getLogger(__name__)
 
 
 def load_matchup_model() -> Any:
@@ -60,32 +62,41 @@ def load_matchup_model() -> Any:
 def predict_matchup(
     home: str, away: str, game_date_text: str | None = None
 ) -> dict[str, Any]:
-    model = load_matchup_model()
+    try:
+        model = load_matchup_model()
 
-    home_id = data_service.resolve_team_id(None, home)
-    away_id = data_service.resolve_team_id(None, away)
-    if home_id == away_id:
-        raise ValueError("Home and away teams must be different.")
+        home_id = data_service.resolve_team_id(None, home)
+        away_id = data_service.resolve_team_id(None, away)
+        if home_id == away_id:
+            raise ValueError("Home and away teams must be different.")
 
-    home_meta, away_meta = data_service.get_team_metadata(None, home_id, away_id)
-    home_state, away_state, home_last_game, away_last_game = (
-        data_service.get_matchup_snapshot(home_id=home_id, away_id=away_id)
-    )
+        home_meta, away_meta = data_service.get_team_metadata(None, home_id, away_id)
+        home_state, away_state, home_last_game, away_last_game = (
+            data_service.get_matchup_snapshot(home_id=home_id, away_id=away_id)
+        )
 
-    game_date, home_rest_days, away_rest_days = (
-        feature_service.resolve_matchup_date_context(
-            home_last_game,
-            away_last_game,
+        game_date, home_rest_days, away_rest_days = (
+            feature_service.resolve_matchup_date_context(
+                home_last_game,
+                away_last_game,
+                game_date_text,
+            )
+        )
+        features = feature_service.build_matchup_features(
+            home_state, away_state, home_rest_days, away_rest_days
+        )
+        home_win_prob = float(model.predict_proba(features)[:, 1][0])
+    except ValueError:
+        raise
+    except FileNotFoundError:
+        raise
+    except Exception as exc:
+        logger.exception(
+            "Matchup prediction failed for home=%s away=%s game_date=%s",
+            home,
+            away,
             game_date_text,
         )
-    )
-    features = feature_service.build_matchup_features(
-        home_state, away_state, home_rest_days, away_rest_days
-    )
-
-    try:
-        home_win_prob = float(model.predict_proba(features)[:, 1][0])
-    except Exception as exc:
         raise RuntimeError(f"Model inference failed: {exc}") from exc
 
     away_win_prob = 1.0 - home_win_prob

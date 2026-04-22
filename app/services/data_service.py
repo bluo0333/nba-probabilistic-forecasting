@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from functools import lru_cache
 import math
 from pathlib import Path
 from typing import Any
@@ -85,7 +86,6 @@ NUMERIC_COLUMNS = [
     "dreb_home",
 ]
 
-_TEAM_INDEX: dict[str, dict[str, str]] | None = None
 MODERN_NBA_MIN_SEASON_ID = 22018
 CURRENT_NBA_TEAM_NAMES = [
     "Atlanta Hawks",
@@ -210,34 +210,138 @@ def _iter_processed_games(chunksize: int = 20000):
         yield chunk
 
 
-def _ensure_team_index() -> dict[str, dict[str, str]]:
-    global _TEAM_INDEX
-    if _TEAM_INDEX is not None:
-        return _TEAM_INDEX
-
+@lru_cache(maxsize=1)
+def _team_index_bundle() -> tuple[dict[str, dict[str, str]], dict[str, tuple[str, ...]]]:
     if not PROCESSED_GAMES_PATH.is_file():
         raise FileNotFoundError(f"Data file not found: {PROCESSED_GAMES_PATH}")
 
-    by_id: dict[str, dict[str, str]] = {}
-    for chunk in pd.read_csv(PROCESSED_GAMES_PATH, usecols=TEAM_COLUMNS, chunksize=20000):
-        for _, row in chunk.iterrows():
-            home_id = _normalize_team_id(row.get("team_id_home"))
-            away_id = _normalize_team_id(row.get("team_id_away"))
-            if home_id and home_id not in by_id:
-                by_id[home_id] = {
-                    "id": home_id,
-                    "abbreviation": str(row.get("team_abbreviation_home") or "").strip().upper(),
-                    "full_name": str(row.get("team_name_home") or "").strip(),
-                }
-            if away_id and away_id not in by_id:
-                by_id[away_id] = {
-                    "id": away_id,
-                    "abbreviation": str(row.get("team_abbreviation_away") or "").strip().upper(),
-                    "full_name": str(row.get("team_name_away") or "").strip(),
-                }
+    usecols = [
+        "season_id",
+        "game_date",
+        "team_id_home",
+        "team_abbreviation_home",
+        "team_name_home",
+        "team_id_away",
+        "team_abbreviation_away",
+        "team_name_away",
+    ]
+    by_id: dict[str, dict[str, Any]] = {}
 
-    _TEAM_INDEX = {k: v for k, v in by_id.items() if v["id"] and v["full_name"]}
-    return _TEAM_INDEX
+    def upsert_team(
+        team_id_raw: Any,
+        abbreviation_raw: Any,
+        full_name_raw: Any,
+        season_id_raw: Any,
+        game_date_raw: Any,
+    ) -> None:
+        team_id = _normalize_team_id(team_id_raw)
+        if not team_id:
+            return
+
+        abbreviation = str(abbreviation_raw or "").strip().upper()
+        full_name = str(full_name_raw or "").strip()
+        if not full_name:
+            return
+
+        try:
+            season_rank = int(float(season_id_raw))
+        except (TypeError, ValueError):
+            season_rank = -1
+
+        game_date = pd.to_datetime(game_date_raw, errors="coerce")
+        date_rank = (
+            int(game_date.value)
+            if isinstance(game_date, pd.Timestamp) and not pd.isna(game_date)
+            else -1
+        )
+        rank = (season_rank, date_rank)
+
+        if team_id not in by_id:
+            by_id[team_id] = {
+                "id": team_id,
+                "abbreviation": abbreviation,
+                "full_name": full_name,
+                "_rank": rank,
+                "_aliases": set(),
+            }
+        else:
+            prev_rank = by_id[team_id]["_rank"]
+            if rank > prev_rank:
+                by_id[team_id]["abbreviation"] = abbreviation or by_id[team_id]["abbreviation"]
+                by_id[team_id]["full_name"] = full_name or by_id[team_id]["full_name"]
+                by_id[team_id]["_rank"] = rank
+
+        aliases = by_id[team_id]["_aliases"]
+        aliases.add(_normalize_text(team_id))
+        if abbreviation:
+            aliases.add(_normalize_text(abbreviation))
+        if full_name:
+            aliases.add(_normalize_text(full_name))
+
+    for chunk in pd.read_csv(PROCESSED_GAMES_PATH, usecols=usecols, chunksize=20000):
+        for _, row in chunk.iterrows():
+            upsert_team(
+                row.get("team_id_home"),
+                row.get("team_abbreviation_home"),
+                row.get("team_name_home"),
+                row.get("season_id"),
+                row.get("game_date"),
+            )
+            upsert_team(
+                row.get("team_id_away"),
+                row.get("team_abbreviation_away"),
+                row.get("team_name_away"),
+                row.get("season_id"),
+                row.get("game_date"),
+            )
+
+    teams_by_id: dict[str, dict[str, Any]] = {}
+    alias_to_ids_mut: dict[str, set[str]] = {}
+    rank_by_id: dict[str, tuple[int, int]] = {}
+    for team_id, team in by_id.items():
+        team_name = str(team["full_name"]).strip()
+        if not team_name:
+            continue
+        abbreviation = str(team["abbreviation"]).strip().upper()
+        rank_by_id[team_id] = team["_rank"]
+        teams_by_id[team_id] = {
+            "id": team_id,
+            "abbreviation": abbreviation,
+            "full_name": team_name,
+            "_rank": team["_rank"],
+        }
+        aliases = set(team["_aliases"])
+        aliases.add(_normalize_text(team_name))
+        if abbreviation:
+            aliases.add(_normalize_text(abbreviation))
+        for alias in aliases:
+            if not alias:
+                continue
+            alias_to_ids_mut.setdefault(alias, set()).add(team_id)
+
+    alias_to_ids = {
+        key: tuple(
+            sorted(
+                value,
+                key=lambda team_id: rank_by_id.get(team_id, (-1, -1)),
+                reverse=True,
+            )
+        )
+        for key, value in alias_to_ids_mut.items()
+    }
+    return teams_by_id, alias_to_ids
+
+
+def _ensure_team_index() -> dict[str, dict[str, str]]:
+    teams_by_id, _ = _team_index_bundle()
+    return {
+        team_id: {
+            "id": team["id"],
+            "abbreviation": team["abbreviation"],
+            "full_name": team["full_name"],
+        }
+        for team_id, team in teams_by_id.items()
+    }
 
 
 def team_logo_url(team_id: str) -> str:
@@ -319,32 +423,20 @@ def get_modern_nba_team_names(conn: Any) -> list[str]:
 
 
 def resolve_team_id(_conn: Any, team_query: str) -> str:
-    teams = _ensure_team_index()
+    teams, alias_to_ids = _team_index_bundle()
     q = _normalize_text(team_query)
     if not q:
         raise ValueError("Team cannot be empty.")
 
-    exact = [
-        team["id"]
-        for team in teams.values()
-        if q in {
-            _normalize_text(team["id"]),
-            _normalize_text(team["abbreviation"]),
-            _normalize_text(team["full_name"]),
-        }
-    ]
-    if len(exact) == 1:
+    if q in alias_to_ids:
+        exact = list(alias_to_ids[q])
         return exact[0]
-    if len(exact) > 1:
-        names = ", ".join(sorted({teams[team_id]["full_name"] for team_id in exact}))
-        raise ValueError(f"Ambiguous team '{team_query}'. Matches: {names}")
 
-    partial = [
-        team["id"]
-        for team in teams.values()
-        if q in _normalize_text(team["full_name"]) or q in _normalize_text(team["abbreviation"])
-    ]
-    partial = sorted(set(partial))
+    partial_ids: set[str] = set()
+    for alias, ids in alias_to_ids.items():
+        if q in alias:
+            partial_ids.update(ids)
+    partial = sorted(partial_ids)
     if len(partial) == 1:
         return partial[0]
     if len(partial) > 1:
