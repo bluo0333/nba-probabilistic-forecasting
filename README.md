@@ -1,5 +1,23 @@
 # NBA Probabilistic Forecasting Platform
 
+Full-stack sports analytics platform for predicting NBA game outcomes using machine learning and historical data.
+
+---
+
+## Live Demo
+
+Try it: https://hoopsedge.onrender.com
+
+Select teams, run predictions, and view results in real time.
+
+**API (Swagger UI):**  
+https://nba-probabilistic-forecasting.onrender.com/docs
+
+**Base API URL:**  
+https://nba-probabilistic-forecasting.onrender.com
+
+---
+
 ## Overview
 
 Full-stack sports analytics platform for predicting NBA game outcomes and player props using historical data, engineered features, and machine learning models.
@@ -105,8 +123,8 @@ Pipelines (pipelines/*.py) feed DuckDB tables and model artifacts.
 
 ## Current Status
 
-- Game outcome prediction: ✅ fully deployed
-- Player prop prediction: 🚧 in progress (pipeline exists, not deployed due to data scaling constraints)
+- Game outcome prediction: fully deployed
+- Player prop prediction: in progress (pipeline exists but not deployed due to data scaling constraints)
 
 ## Model Performance
 
