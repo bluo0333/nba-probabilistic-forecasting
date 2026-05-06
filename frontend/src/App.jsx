@@ -54,10 +54,8 @@ export default function App() {
   const [loadingPrediction, setLoadingPrediction] = useState(false);
   const [error, setError] = useState("");
   const [selectionError, setSelectionError] = useState("");
-  const [buttonHover, setButtonHover] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectingType, setSelectingType] = useState(null);
-  const [hoveredTeam, setHoveredTeam] = useState("");
   const [teamSearch, setTeamSearch] = useState("");
   const [brokenLogos, setBrokenLogos] = useState({});
 
@@ -113,7 +111,6 @@ export default function App() {
   const closeTeamModal = () => {
     setModalOpen(false);
     setSelectingType(null);
-    setHoveredTeam("");
     setTeamSearch("");
   };
 
@@ -170,375 +167,252 @@ export default function App() {
 
   const asPercent = (value) => `${(value * 100).toFixed(1)}%`;
 
-  const buttonBackground = loadingPrediction
-    ? "#94a3b8"
-    : buttonHover
-      ? "#1d4ed8"
-      : "#2563eb";
+  const canPredict = Boolean(selectedHome && selectedAway);
+  const predictionHomeLeads =
+    prediction?.home_win_probability >= prediction?.away_win_probability;
+  const homeBarWidth = prediction
+    ? `${(prediction.home_win_probability * 100).toFixed(1)}%`
+    : "50%";
+
+  const renderTeamLogo = (team, className = "team-logo-circle") => {
+    const logoUrl = TEAM_LOGOS[team];
+    const showLogo = Boolean(logoUrl && !brokenLogos[team]);
+
+    return (
+      <span className={className} aria-hidden="true">
+        {team && showLogo ? (
+          <img
+            src={logoUrl}
+            alt=""
+            onError={() => setBrokenLogos((prev) => ({ ...prev, [team]: true }))}
+          />
+        ) : (
+          <span className="team-initials">{team ? getInitials(team) : "?"}</span>
+        )}
+      </span>
+    );
+  };
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#f3f4f6",
-        padding: 16,
-        fontFamily:
-          "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      }}
-    >
-      <section
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          backgroundColor: "#ffffff",
-          borderRadius: 14,
-          boxShadow: "0 10px 30px rgba(15, 23, 42, 0.10)",
-          padding: 24,
-        }}
-      >
-        <h1
-          style={{
-            margin: 0,
-            textAlign: "center",
-            fontSize: 24,
-            color: "#111827",
-          }}
+    <main className="page-shell">
+      <section className="nba-app">
+        <svg
+          className="court-lines"
+          viewBox="0 0 500 600"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
         >
-          NBA Matchup Predictor
-        </h1>
-        <p
-          style={{
-            marginTop: 8,
-            marginBottom: 20,
-            textAlign: "center",
-            color: "#6b7280",
-            fontSize: 14,
-          }}
-        >
-          Select two teams and run a prediction
-        </p>
+          <rect x="50" y="50" width="400" height="500" fill="none" />
+          <line x1="50" y1="300" x2="450" y2="300" />
+          <circle cx="250" cy="300" r="60" fill="none" />
+          <circle cx="250" cy="300" r="6" />
+          <rect x="150" y="50" width="200" height="140" fill="none" />
+          <rect x="150" y="410" width="200" height="140" fill="none" />
+          <path d="M 160 190 A 90 90 0 0 1 340 190" fill="none" />
+          <path d="M 160 410 A 90 90 0 0 0 340 410" fill="none" />
+          <circle cx="250" cy="115" r="20" fill="none" />
+          <circle cx="250" cy="485" r="20" fill="none" />
+        </svg>
 
-        {loadingTeams ? (
-          <div className="teams-loading" role="status" aria-live="polite">
-            <span className="teams-loading__spinner" aria-hidden="true" />
-            <p className="teams-loading__message">
-              {isSlowLoad
-                ? "Waking up server (first request may take ~10-20 seconds)"
-                : "Loading teams..."}
-            </p>
-          </div>
-        ) : (
-          <>
-            <div style={{ display: "grid", gap: 12 }}>
-              <div style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>
-                  Team A (Home)
-                </span>
+        <header className="app-header">
+          <div className="app-logo">Probabilistic Forecasting</div>
+          <h1 className="app-title">NBA Matchup Predictor</h1>
+          <p className="app-subtitle">Model-driven win probability engine</p>
+        </header>
+
+        <div className="app-body">
+          {loadingTeams ? (
+            <div className="teams-loading" role="status" aria-live="polite">
+              <span className="teams-loading__spinner" aria-hidden="true" />
+              <p className="teams-loading__message">
+                {isSlowLoad
+                  ? "Waking up server (first request may take ~10-20 seconds)"
+                  : "Loading teams..."}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="matchup-builder">
                 <button
+                  className={`team-slot${selectedHome ? " selected" : ""}`}
                   type="button"
                   onClick={() => openTeamModal("home")}
                   disabled={loadingTeams}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #d1d5db",
-                    backgroundColor: "#ffffff",
-                    color: selectedHome ? "#111827" : "#9ca3af",
-                    fontSize: 14,
-                    cursor: loadingTeams ? "not-allowed" : "pointer",
-                  }}
+                  aria-label="Select home team"
                 >
-                  {selectedHome || "Select Team"}
+                  <span className="team-slot-label">Home</span>
+                  {renderTeamLogo(selectedHome)}
+                  <span
+                    className={
+                      selectedHome ? "team-name-selected" : "team-placeholder"
+                    }
+                  >
+                    {selectedHome || "Select team"}
+                  </span>
                 </button>
-              </div>
 
-              <div style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>
-                  Team B (Away)
-                </span>
+                <div className="vs-badge">VS</div>
+
                 <button
+                  className={`team-slot${selectedAway ? " selected" : ""}`}
                   type="button"
                   onClick={() => openTeamModal("away")}
                   disabled={loadingTeams}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #d1d5db",
-                    backgroundColor: "#ffffff",
-                    color: selectedAway ? "#111827" : "#9ca3af",
-                    fontSize: 14,
-                    cursor: loadingTeams ? "not-allowed" : "pointer",
-                  }}
+                  aria-label="Select away team"
                 >
-                  {selectedAway || "Select Team"}
+                  <span className="team-slot-label">Away</span>
+                  {renderTeamLogo(selectedAway)}
+                  <span
+                    className={
+                      selectedAway ? "team-name-selected" : "team-placeholder"
+                    }
+                  >
+                    {selectedAway || "Select team"}
+                  </span>
                 </button>
               </div>
 
               <button
+                className="predict-btn"
                 type="button"
                 onClick={handlePredict}
-                disabled={loadingPrediction || loadingTeams}
-                onMouseEnter={() => setButtonHover(true)}
-                onMouseLeave={() => setButtonHover(false)}
-                style={{
-                  width: "100%",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "11px 12px",
-                  backgroundColor: buttonBackground,
-                  color: "#ffffff",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor:
-                    loadingPrediction || loadingTeams ? "not-allowed" : "pointer",
-                  transition: "background-color 120ms ease-in-out",
-                  marginTop: 2,
-                }}
+                disabled={loadingPrediction || loadingTeams || !canPredict}
               >
-                {loadingPrediction ? "Predicting..." : "Predict"}
+                {loadingPrediction ? "Predicting..." : "Run Prediction"}
               </button>
-            </div>
 
-            {selectionError ? (
-              <p
-                style={{
-                  marginTop: 12,
-                  marginBottom: 0,
-                  color: "#dc2626",
-                  textAlign: "center",
-                  fontSize: 13,
-                }}
-              >
-                {selectionError}
-              </p>
-            ) : null}
+              {selectionError ? (
+                <p className="error-msg">{selectionError}</p>
+              ) : null}
 
-            {error ? (
-              <p
-                style={{
-                  marginTop: 12,
-                  marginBottom: 0,
-                  color: "#dc2626",
-                  textAlign: "center",
-                  fontSize: 14,
-                }}
-              >
-                {error}
-              </p>
-            ) : null}
+              {error ? <p className="error-msg">{error}</p> : null}
 
-            {prediction ? (
-              <section
-                style={{
-                  marginTop: 16,
-                  backgroundColor: "#f3f4f6",
-                  borderRadius: 10,
-                  padding: 14,
-                  textAlign: "center",
-                }}
-              >
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: 18,
-                    color: "#111827",
-                  }}
+              {loadingPrediction ? (
+                <div
+                  className="prediction-loading"
+                  role="status"
+                  aria-live="polite"
                 >
-                  {prediction.matchup}
-                </h2>
-                <p style={{ margin: "10px 0 0", color: "#374151", fontSize: 14 }}>
-                  {prediction.home_team}:{" "}
-                  {asPercent(prediction.home_win_probability)}
-                </p>
-                <p style={{ margin: "6px 0 0", color: "#374151", fontSize: 14 }}>
-                  {prediction.away_team}:{" "}
-                  {asPercent(prediction.away_win_probability)}
-                </p>
-                <p style={{ margin: "10px 0 0", color: "#111827", fontSize: 14 }}>
-                  Predicted winner: <strong>{prediction.predicted_winner}</strong>
-                </p>
-              </section>
-            ) : null}
-          </>
-        )}
+                  <span className="teams-loading__spinner" aria-hidden="true" />
+                  <span>Computing win probabilities...</span>
+                </div>
+              ) : null}
+
+              {prediction ? (
+                <section className="result-card" aria-label={prediction.matchup}>
+                  <div className="result-header">
+                    <span className="result-header-label">Win Probability</span>
+                    <span className="winner-badge">
+                      {prediction.predicted_winner}
+                    </span>
+                  </div>
+                  <div className="result-body">
+                    <div className="prob-row">
+                      <div className="prob-team">
+                        <div className="prob-team-name">
+                          {prediction.home_team}
+                        </div>
+                        <div
+                          className={`prob-value${
+                            predictionHomeLeads ? " leader" : ""
+                          }`}
+                        >
+                          {asPercent(prediction.home_win_probability)}
+                        </div>
+                      </div>
+                      <div className="prob-divider">
+                        <span>vs</span>
+                      </div>
+                      <div className="prob-team away">
+                        <div className="prob-team-name">
+                          {prediction.away_team}
+                        </div>
+                        <div
+                          className={`prob-value${
+                            !predictionHomeLeads ? " leader" : ""
+                          }`}
+                        >
+                          {asPercent(prediction.away_win_probability)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="prob-bar-container" aria-hidden="true">
+                      <div
+                        className="prob-bar-fill"
+                        style={{ width: homeBarWidth }}
+                      />
+                    </div>
+                    <div className="prob-bar-labels">
+                      <span>{prediction.home_team}</span>
+                      <span>{prediction.away_team}</span>
+                    </div>
+                    <div className="winner-line">
+                      Predicted winner:{" "}
+                      <span className="winner-name">
+                        {prediction.predicted_winner}
+                      </span>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+            </>
+          )}
+        </div>
       </section>
 
       {modalOpen ? (
-        <div
-          onClick={closeTeamModal}
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.58)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 1000,
-          }}
-        >
-          <div
-            onClick={(event) => event.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 860,
-              maxHeight: "82vh",
-              overflowY: "auto",
-              backgroundColor: "#ffffff",
-              borderRadius: 14,
-              padding: 20,
-              boxShadow: "0 18px 40px rgba(15, 23, 42, 0.24)",
-            }}
-          >
-            <h3
-              style={{
-                marginTop: 0,
-                marginBottom: 12,
-                textAlign: "center",
-                color: "#111827",
-                fontSize: 22,
-              }}
-            >
-              Select Team
-            </h3>
+        <div className="modal-overlay" onClick={closeTeamModal}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">
+                {selectingType === "home"
+                  ? "Select Home Team"
+                  : "Select Away Team"}
+              </h2>
+              <button
+                className="modal-close"
+                type="button"
+                onClick={closeTeamModal}
+                aria-label="Close team selector"
+              >
+                x
+              </button>
+            </div>
 
-            <input
-              type="text"
-              value={teamSearch}
-              onChange={(event) => setTeamSearch(event.target.value)}
-              placeholder="Search teams..."
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                border: "1px solid #d1d5db",
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 14,
-                color: "#111827",
-                marginBottom: 14,
-                outline: "none",
-              }}
-            />
+            <div className="modal-search-wrap">
+              <input
+                className="modal-search"
+                type="text"
+                value={teamSearch}
+                onChange={(event) => setTeamSearch(event.target.value)}
+                placeholder="Search teams..."
+              />
+            </div>
 
             {selectionError ? (
-              <p
-                style={{
-                  marginTop: 0,
-                  marginBottom: 12,
-                  color: "#dc2626",
-                  textAlign: "center",
-                  fontSize: 13,
-                }}
-              >
-                {selectionError}
-              </p>
+              <p className="sel-err">{selectionError}</p>
             ) : null}
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))",
-                gap: 12,
-              }}
-            >
+            <div className="modal-grid">
               {filteredTeams.map((team) => {
-                const logoUrl = TEAM_LOGOS[team];
-                const showLogo = Boolean(logoUrl && !brokenLogos[team]);
-                const isHovered = hoveredTeam === team;
                 const isSelected = selectedInModal === team;
 
                 return (
                   <button
                     key={team}
+                    className={`team-card${isSelected ? " selected-card" : ""}`}
                     type="button"
                     onClick={() => handleSelectTeam(team)}
-                    onMouseEnter={() => setHoveredTeam(team)}
-                    onMouseLeave={() => setHoveredTeam("")}
-                    style={{
-                      border: isSelected ? "2px solid #2563eb" : "1px solid #e5e7eb",
-                      borderRadius: 12,
-                      padding: 12,
-                      backgroundColor: isSelected ? "#eff6ff" : "#ffffff",
-                      cursor: "pointer",
-                      textAlign: "center",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 10,
-                      minHeight: 120,
-                      boxShadow:
-                        isHovered || isSelected
-                          ? "0 8px 18px rgba(15, 23, 42, 0.12)"
-                          : "0 1px 2px rgba(15, 23, 42, 0.04)",
-                      transform: isHovered ? "scale(1.02)" : "scale(1)",
-                      transition:
-                        "transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease, border-color 120ms ease",
-                    }}
                   >
-                    {showLogo ? (
-                      <img
-                        src={logoUrl}
-                        alt={`${team} logo`}
-                        width={50}
-                        height={50}
-                        style={{ objectFit: "contain" }}
-                        onError={() =>
-                          setBrokenLogos((prev) => ({ ...prev, [team]: true }))
-                        }
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: 50,
-                          height: 50,
-                          borderRadius: "50%",
-                          backgroundColor: "#e5e7eb",
-                          color: "#374151",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 14,
-                          fontWeight: 700,
-                        }}
-                      >
-                        {getInitials(team)}
-                      </div>
-                    )}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: "#111827",
-                        fontWeight: 600,
-                        lineHeight: 1.25,
-                      }}
-                    >
-                      {team}
-                    </span>
+                    {renderTeamLogo(team, "team-card-logo")}
+                    <span className="team-card-name">{team}</span>
                   </button>
                 );
               })}
             </div>
 
             {filteredTeams.length === 0 ? (
-              <p
-                style={{
-                  marginTop: 14,
-                  marginBottom: 0,
-                  color: "#6b7280",
-                  textAlign: "center",
-                  fontSize: 14,
-                }}
-              >
-                No teams found.
-              </p>
+              <p className="empty-teams">No teams found.</p>
             ) : null}
           </div>
         </div>
