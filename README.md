@@ -140,6 +140,7 @@ Pipelines (pipelines/*.py) build runtime CSV/model artifacts offline.
   - `pipelines/train.py`
 - Player workflow pipelines:
   - `pipelines/ingest_balldontlie.py`
+  - `pipelines/ingest_nba_api.py` (free NBA.com/stats path via `nba_api`)
   - `pipelines/build_player_features.py`
   - `pipelines/train_player_model.py`
   - `pipelines/predict_player_props.py`
@@ -199,4 +200,20 @@ GET  /predict/quick?home=...&away=...
 POST /predict/matchup
 GET  /props/players
 POST /props/predict
+```
+
+## Build Player Prop Artifacts
+
+The free path uses NBA.com/stats through the `nba_api` package:
+
+```bash
+python pipelines/ingest_nba_api.py
+python pipelines/build_player_features.py
+python pipelines/train_player_model.py
+```
+
+You can fetch explicit seasons with repeated `--season` flags:
+
+```bash
+python pipelines/ingest_nba_api.py --season 2023-24 --season 2024-25 --season 2025-26
 ```

@@ -214,7 +214,19 @@ if __name__ == "__main__":
     try:
         main()
     except requests.HTTPError as exc:
-        print(f"ERROR: balldontlie request failed: {exc}")
+        response = exc.response
+        detail = ""
+        if response is not None:
+            text = response.text.strip()
+            if text:
+                detail = f"\nResponse body: {text[:1000]}"
+            if response.status_code == 401:
+                detail += (
+                    "\nA 401 from balldontlie usually means the API key is "
+                    "missing, invalid, or the account tier does not have access "
+                    "to this endpoint."
+                )
+        print(f"ERROR: balldontlie request failed: {exc}{detail}")
         raise SystemExit(1)
     except Exception as exc:
         print(f"ERROR: ingestion failed: {exc}")
