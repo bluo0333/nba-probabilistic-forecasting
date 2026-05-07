@@ -271,7 +271,8 @@ function PlayerPropsSection() {
     setError("");
     setResult(null);
 
-    if (!selectedPlayer) { setError("Select a player."); return; }
+    const playerName = selectedPlayer || playerQuery.trim();
+    if (!playerName) { setError("Enter a player name."); return; }
     const lineNum = parseFloat(line);
     const oddsNum = parseFloat(odds);
     if (isNaN(lineNum) || lineNum <= 0) { setError("Enter a valid line (e.g. 24.5)."); return; }
@@ -283,7 +284,7 @@ function PlayerPropsSection() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          player: selectedPlayer,
+          player: playerName,
           line_type: propType,
           side,
           line: lineNum,
@@ -300,7 +301,7 @@ function PlayerPropsSection() {
     }
   };
 
-  const canSubmit = Boolean(selectedPlayer && line && odds);
+  const canSubmit = Boolean(playerQuery.trim() && line && odds);
   const lineNum = parseFloat(line) || 0;
 
   return (
@@ -325,7 +326,6 @@ function PlayerPropsSection() {
                 value={playerQuery}
                 onChange={(e) => {
                   setPlayerQuery(e.target.value);
-                  setSelectedPlayer("");
                   setPlayerDropdownOpen(true);
                 }}
                 onFocus={() => setPlayerDropdownOpen(true)}
@@ -506,18 +506,18 @@ function PlayerPropsSection() {
         <div className="props-log-col">
           <div className="log-header">
             <span className="log-title">Recent Game Log</span>
-            {selectedPlayer && (
+            {(selectedPlayer || playerQuery.trim()) && (
               <span className="log-stat-label">
                 {PROP_TYPES.find((p) => p.value === propType)?.label}
               </span>
             )}
           </div>
 
-          {!selectedPlayer && (
+          {!selectedPlayer && !playerQuery.trim() && (
             <div className="log-empty">Select a player to see recent games</div>
           )}
 
-          {selectedPlayer && bdlApiMissing && (
+          {(selectedPlayer || playerQuery.trim()) && bdlApiMissing && (
             <div className="log-api-notice">
               <span className="log-api-icon">Key</span>
               <p>
@@ -536,13 +536,13 @@ function PlayerPropsSection() {
             </div>
           )}
 
-          {selectedPlayer && !bdlApiMissing && loadingGames && (
+          {(selectedPlayer || playerQuery.trim()) && !bdlApiMissing && loadingGames && (
             <div className="log-loading">
               <Spinner /> Loading game log...
             </div>
           )}
 
-          {selectedPlayer && !bdlApiMissing && !loadingGames && recentGames && (
+          {(selectedPlayer || playerQuery.trim()) && !bdlApiMissing && !loadingGames && recentGames && (
             <div className="game-log">
               {recentGames.length === 0 && (
                 <div className="log-empty">No recent games found.</div>
@@ -580,7 +580,7 @@ function PlayerPropsSection() {
             </div>
           )}
 
-          {selectedPlayer && !bdlApiMissing && !loadingGames && !recentGames && (
+          {(selectedPlayer || playerQuery.trim()) && !bdlApiMissing && !loadingGames && !recentGames && (
             <div className="log-empty">Player not found in balldontlie database.</div>
           )}
         </div>
