@@ -3,11 +3,6 @@ import "./App.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-const BALLDONTLIE_API_KEY =
-  import.meta.env.VITE_BALLDONTLIE_API_KEY ||
-  "0cf1166a-ae1f-4256-99b5-d89316d59313";
-const BALLDONTLIE_BASE = "https://api.balldontlie.io/v1";
-
 const TEAM_LOGOS = {
   "Atlanta Hawks": "https://a.espncdn.com/i/teamlogos/nba/500/atl.png",
   "Boston Celtics": "https://a.espncdn.com/i/teamlogos/nba/500/bos.png",
@@ -48,12 +43,6 @@ const PROP_TYPES = [
   { value: "3ps", label: "3PM" },
 ];
 
-const PROP_STAT_KEYS = {
-  points: "pts",
-  rebounds: "reb",
-  "3ps": "fg3m",
-};
-
 function edgeColor(edge) {
   if (edge > 0.05) return "positive";
   if (edge < -0.05) return "negative";
@@ -65,76 +54,6 @@ function getInitials(teamName) {
   if (words.length === 0) return "NBA";
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
-}
-
-let ballDontLieTeamsById = null;
-
-async function fetchBallDontLieTeamsById() {
-  if (ballDontLieTeamsById) return ballDontLieTeamsById;
-
-  const resp = await fetch(`${BALLDONTLIE_BASE}/teams`, {
-    headers: { Authorization: BALLDONTLIE_API_KEY },
-  });
-  if (!resp.ok) return new Map();
-
-  const json = await resp.json();
-  ballDontLieTeamsById = new Map(
-    (json.data || []).map((team) => [String(team.id), team.full_name])
-  );
-  return ballDontLieTeamsById;
-}
-
-function getOpponentName(stat, teamsById) {
-  const game = stat.game || {};
-  const currentTeamId = stat.team?.id;
-  const homeTeamId = game.home_team_id;
-  const visitorTeamId = game.visitor_team_id;
-  const opponentId = currentTeamId === homeTeamId ? visitorTeamId : homeTeamId;
-
-  if (game.home_team?.id === opponentId) return game.home_team.full_name;
-  if (game.visitor_team?.id === opponentId) return game.visitor_team.full_name;
-  return teamsById.get(String(opponentId)) || "Unknown";
-}
-
-async function fetchPlayerRecentGames(playerId, propType, n = 10) {
-  const statKey = PROP_STAT_KEYS[propType];
-  const params = new URLSearchParams({ per_page: "100" });
-  params.append("player_ids[]", playerId);
-  const url = `${BALLDONTLIE_BASE}/stats?${params.toString()}`;
-  const [resp, teamsById] = await Promise.all([
-    fetch(url, { headers: { Authorization: BALLDONTLIE_API_KEY } }),
-    fetchBallDontLieTeamsById(),
-  ]);
-  if (!resp.ok) return null;
-  const json = await resp.json();
-  return (json.data || [])
-    .filter((game) => game.game?.date)
-    .sort((a, b) => new Date(b.game.date) - new Date(a.game.date))
-    .slice(0, n)
-    .map((game) => ({
-      date: game.game.date.slice(0, 10),
-      opponent: getOpponentName(game, teamsById),
-      value: game[statKey] ?? 0,
-      mins: game.min ?? "0",
-    }));
-}
-
-async function searchBallDontLiePlayers(name) {
-  const search = async (term) => {
-    const url = `${BALLDONTLIE_BASE}/players?search=${encodeURIComponent(term)}&per_page=10`;
-    const resp = await fetch(url, {
-      headers: { Authorization: BALLDONTLIE_API_KEY },
-    });
-    if (!resp.ok) return [];
-    const json = await resp.json();
-    return json.data || [];
-  };
-
-  const fullNameResults = await search(name);
-  if (fullNameResults.length > 0) return fullNameResults;
-
-  const lastName = name.split(" ").filter(Boolean).at(-1);
-  return lastName && lastName !== name ? search(lastName) : [];
 }
 
 function Spinner({ size = 18 }) {
@@ -172,6 +91,7 @@ function PlayerPropsSection() {
   const [selectedPlayer, setSelectedPlayer] = useState("");
   const [playerDropdownOpen, setPlayerDropdownOpen] = useState(false);
   const [loadingPlayers, setLoadingPlayers] = useState(false);
+  const [playerLoadError, setPlayerLoadError] = useState("");
 
   // Prop form
   const [propType, setPropType] = useState("points");
@@ -184,23 +104,57 @@ function PlayerPropsSection() {
   const [loadingResult, setLoadingResult] = useState(false);
   const [error, setError] = useState("");
 
-  // Recent game log from balldontlie
-  const [bdlPlayerId, setBdlPlayerId] = useState(null);
   const [recentGames, setRecentGames] = useState(null);
   const [loadingGames, setLoadingGames] = useState(false);
-  const [bdlApiMissing, setBdlApiMissing] = useState(false);
+  const [recentGamesError, setRecentGamesError] = useState("");
 
   const dropdownRef = useRef(null);
 
   // Load player list from our backend
   useEffect(() => {
-    setLoadingPlayers(true);
-    fetch(`${API_BASE}/props/players`)
-      .then((r) => r.json())
-      .then((data) => setPlayers(Array.isArray(data) ? data : []))
-      .catch(() => setPlayers([]))
-      .finally(() => setLoadingPlayers(false));
+    let cancelled = false;
+
+    const loadPlayers = async () => {
+      setLoadingPlayers(true);
+      setPlayerLoadError("");
+      try {
+        const response = await fetch(`${API_BASE}/props/players`);
+        if (!response.ok) {
+          throw new Error("Failed to load players.");
+        }
+        const data = await response.json();
+        if (!cancelled) {
+          setPlayers(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setPlayers([]);
+          setPlayerLoadError("Could not load players. Check that the API server is running.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingPlayers(false);
+        }
+      }
+    };
+
+    loadPlayers();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!playerQuery.trim()) {
+      setSelectedPlayer("");
+      return;
+    }
+
+    const exactMatch = players.find(
+      (player) => player.toLowerCase() === playerQuery.trim().toLowerCase()
+    );
+    setSelectedPlayer(exactMatch || "");
+  }, [players, playerQuery]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -219,59 +173,63 @@ function PlayerPropsSection() {
     return players.filter((p) => p.toLowerCase().includes(q));
   }, [players, playerQuery]);
 
+  const resolvedPlayer = useMemo(() => {
+    if (selectedPlayer) return selectedPlayer;
+    const query = playerQuery.trim().toLowerCase();
+    if (!query) return "";
+    return players.find((player) => player.toLowerCase() === query) || "";
+  }, [playerQuery, players, selectedPlayer]);
+
   const handleSelectPlayer = async (name) => {
     setSelectedPlayer(name);
     setPlayerQuery(name);
     setPlayerDropdownOpen(false);
     setResult(null);
     setError("");
-    setRecentGames(null);
-    setBdlPlayerId(null);
-
-    if (!BALLDONTLIE_API_KEY) {
-      setBdlApiMissing(true);
-      return;
-    }
-    setBdlApiMissing(false);
-    setLoadingGames(true);
-    try {
-      const results = await searchBallDontLiePlayers(name);
-      const match =
-        results.find(
-          (p) =>
-            `${p.first_name} ${p.last_name}`.toLowerCase() === name.toLowerCase()
-        ) ||
-        results.find((p) =>
-          name.toLowerCase().includes(String(p.last_name || "").toLowerCase())
-        );
-      if (match) {
-        setBdlPlayerId(match.id);
-      }
-    } catch {
-      setRecentGames(null);
-    } finally {
-      setLoadingGames(false);
-    }
   };
 
-  // Fetch game log when player or prop type changes
   useEffect(() => {
-    if (!bdlPlayerId) {
+    if (!resolvedPlayer) {
       setRecentGames(null);
+      setRecentGamesError("");
       return;
     }
+
+    const controller = new AbortController();
     setLoadingGames(true);
-    fetchPlayerRecentGames(bdlPlayerId, propType)
-      .then((games) => setRecentGames(games))
-      .catch(() => setRecentGames(null))
+    setRecentGamesError("");
+
+    const params = new URLSearchParams({
+      player: resolvedPlayer,
+      line_type: propType,
+      limit: "10",
+    });
+
+    fetch(`${API_BASE}/props/recent-games?${params.toString()}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.detail || "Failed to load recent games.");
+        }
+        setRecentGames(Array.isArray(payload) ? payload : []);
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") return;
+        setRecentGames(null);
+        setRecentGamesError(err.message || "Failed to load recent games.");
+      })
       .finally(() => setLoadingGames(false));
-  }, [bdlPlayerId, propType]);
+
+    return () => controller.abort();
+  }, [propType, resolvedPlayer]);
 
   const handlePredict = async () => {
     setError("");
     setResult(null);
 
-    const playerName = selectedPlayer || playerQuery.trim();
+    const playerName = resolvedPlayer;
     if (!playerName) { setError("Enter a player name."); return; }
     const lineNum = parseFloat(line);
     const oddsNum = parseFloat(odds);
@@ -301,7 +259,7 @@ function PlayerPropsSection() {
     }
   };
 
-  const canSubmit = Boolean(playerQuery.trim() && line && odds);
+  const canSubmit = Boolean(resolvedPlayer && line && odds);
   const lineNum = parseFloat(line) || 0;
 
   return (
@@ -326,28 +284,38 @@ function PlayerPropsSection() {
                 value={playerQuery}
                 onChange={(e) => {
                   setPlayerQuery(e.target.value);
+                  setSelectedPlayer("");
                   setPlayerDropdownOpen(true);
                 }}
                 onFocus={() => setPlayerDropdownOpen(true)}
                 disabled={loadingPlayers}
                 autoComplete="off"
               />
-              {playerDropdownOpen && filteredPlayers.length > 0 && (
+              {playerLoadError && (
+                <p className="field-help error">{playerLoadError}</p>
+              )}
+              {playerDropdownOpen && playerQuery.trim() && (
                 <ul className="player-dropdown">
-                  {filteredPlayers.slice(0, 12).map((p) => (
-                    <li
-                      key={p}
-                      className={`player-option${p === selectedPlayer ? " active" : ""}`}
-                      onMouseDown={() => handleSelectPlayer(p)}
-                    >
-                      {p}
+                  {filteredPlayers.length > 0 ? (
+                    filteredPlayers.slice(0, 12).map((p) => (
+                      <li
+                        key={p}
+                        className={`player-option${p === selectedPlayer ? " active" : ""}`}
+                        onMouseDown={() => handleSelectPlayer(p)}
+                      >
+                        {p}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="player-option more">
+                      {loadingPlayers ? "Loading players..." : "No players found"}
                     </li>
-                  ))}
-                  {filteredPlayers.length > 12 && (
+                  )}
+                  {filteredPlayers.length > 12 ? (
                     <li className="player-option more">
                       +{filteredPlayers.length - 12} more - keep typing
                     </li>
-                  )}
+                  ) : null}
                 </ul>
               )}
             </div>
@@ -506,43 +474,28 @@ function PlayerPropsSection() {
         <div className="props-log-col">
           <div className="log-header">
             <span className="log-title">Recent Game Log</span>
-            {(selectedPlayer || playerQuery.trim()) && (
+            {resolvedPlayer && (
               <span className="log-stat-label">
                 {PROP_TYPES.find((p) => p.value === propType)?.label}
               </span>
             )}
           </div>
 
-          {!selectedPlayer && !playerQuery.trim() && (
+          {!resolvedPlayer && !playerQuery.trim() && (
             <div className="log-empty">Select a player to see recent games</div>
           )}
 
-          {(selectedPlayer || playerQuery.trim()) && bdlApiMissing && (
-            <div className="log-api-notice">
-              <span className="log-api-icon">Key</span>
-              <p>
-                Game log requires a free{" "}
-                <strong>balldontlie.io</strong> API key.
-              </p>
-              <p>
-                Register at{" "}
-                <a href="https://www.balldontlie.io" target="_blank" rel="noreferrer">
-                  balldontlie.io
-                </a>{" "}
-                and set{" "}
-                <code>VITE_BALLDONTLIE_API_KEY</code> in your{" "}
-                <code>.env</code> file.
-              </p>
-            </div>
-          )}
-
-          {(selectedPlayer || playerQuery.trim()) && !bdlApiMissing && loadingGames && (
+          {resolvedPlayer && loadingGames && (
             <div className="log-loading">
               <Spinner /> Loading game log...
             </div>
           )}
 
-          {(selectedPlayer || playerQuery.trim()) && !bdlApiMissing && !loadingGames && recentGames && (
+          {resolvedPlayer && !loadingGames && recentGamesError && (
+            <div className="log-empty">{recentGamesError}</div>
+          )}
+
+          {resolvedPlayer && !loadingGames && !recentGamesError && recentGames && (
             <div className="game-log">
               {recentGames.length === 0 && (
                 <div className="log-empty">No recent games found.</div>
@@ -580,8 +533,8 @@ function PlayerPropsSection() {
             </div>
           )}
 
-          {(selectedPlayer || playerQuery.trim()) && !bdlApiMissing && !loadingGames && !recentGames && (
-            <div className="log-empty">Player not found in balldontlie database.</div>
+          {resolvedPlayer && !loadingGames && !recentGamesError && !recentGames && (
+            <div className="log-empty">No recent games loaded.</div>
           )}
         </div>
       </div>

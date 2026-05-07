@@ -240,6 +240,16 @@ def get_modern_nba_team_names() -> list[str]:
     return list(_modern_team_names())
 
 
+def team_name_for_id(team_id: Any) -> str:
+    team_id_norm = _normalize_team_id(team_id)
+    if not team_id_norm:
+        return "Unknown"
+    team = _ensure_team_index().get(team_id_norm)
+    if team is None:
+        return "Unknown"
+    return team["full_name"]
+
+
 def resolve_team_id(team_query: str) -> str:
     teams, alias_to_ids = _team_index_bundle()
     q = _normalize_text(team_query)

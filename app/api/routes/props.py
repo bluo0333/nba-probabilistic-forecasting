@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.request import PlayerPropPredictRequest
-from app.schemas.response import PlayerPropPredictResponse
+from app.schemas.response import PlayerPropPredictResponse, PlayerRecentGameResponse
 from app.services import model_service
 
 router = APIRouter(prefix="/props", tags=["props"])
@@ -21,6 +21,31 @@ def list_players() -> list[str]:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to load players: {exc}",
+        ) from exc
+
+
+@router.get("/recent-games", response_model=list[PlayerRecentGameResponse])
+def list_recent_games(
+    player: str,
+    line_type: str = "points",
+    limit: int = 10,
+) -> list[PlayerRecentGameResponse]:
+    try:
+        return [
+            PlayerRecentGameResponse(**row)
+            for row in model_service.get_player_recent_games(
+                player=player,
+                prop_type=line_type,
+                limit=limit,
+            )
+        ]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to list recent player games")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to load recent games: {exc}",
         ) from exc
 
 

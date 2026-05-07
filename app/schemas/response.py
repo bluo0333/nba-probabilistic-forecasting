@@ -25,3 +25,10 @@ class PlayerPropPredictResponse(BaseModel):
     implied_probability: float
     edge: float
     mean_source: str
+
+
+class PlayerRecentGameResponse(BaseModel):
+    date: str
+    opponent: str
+    value: float
+    mins: float

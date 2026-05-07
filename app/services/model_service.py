@@ -190,6 +190,53 @@ def get_player_names() -> list[str]:
     return _load_player_prop_context()["players"]
 
 
+def get_player_recent_games(
+    player: str,
+    prop_type: str,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    context = _load_player_prop_context()
+    prop_type_norm = str(prop_type).strip().lower()
+    if prop_type_norm not in PLAYER_PROP_TYPES:
+        raise ValueError("Line type must be one of: points, rebounds, 3ps.")
+
+    player_norm = feature_utils.normalize_name(player)
+    canonical_name = context["name_map"].get(player_norm)
+    if not canonical_name:
+        raise ValueError(f"Player '{player}' not found.")
+
+    stats_df = context["stats_df"]
+    if stats_df is None or stats_df.empty:
+        return []
+
+    stat_column = feature_utils.pick_existing_column(
+        stats_df,
+        PLAYER_PROP_STAT_COLUMN_CANDIDATES[prop_type_norm],
+    )
+    if stat_column is None:
+        return []
+
+    player_games = stats_df[stats_df["player_name_norm"] == player_norm].copy()
+    if player_games.empty:
+        return []
+
+    player_games = player_games.sort_values(["date", "game_id"], ascending=False).head(
+        max(1, min(int(limit), 50))
+    )
+
+    rows: list[dict[str, Any]] = []
+    for row in player_games.to_dict("records"):
+        rows.append(
+            {
+                "date": pd.Timestamp(row["date"]).strftime("%Y-%m-%d"),
+                "opponent": data_service.team_name_for_id(row.get("opponent_team_id")),
+                "value": float(row.get(stat_column) or 0.0),
+                "mins": float(row.get("minutes") or 0.0),
+            }
+        )
+    return rows
+
+
 def predict_player_prop(
     player: str,
     prop_type: str,

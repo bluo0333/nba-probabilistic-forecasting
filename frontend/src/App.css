@@ -789,6 +789,16 @@ input {
   position: relative;
 }
 
+.field-help {
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.field-help.error {
+  color: #fca5a5;
+}
+
 .player-dropdown {
   position: absolute;
   top: calc(100% + 4px);
