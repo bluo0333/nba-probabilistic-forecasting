@@ -231,7 +231,7 @@ def get_player_recent_games(
                 "date": pd.Timestamp(row["date"]).strftime("%Y-%m-%d"),
                 "opponent": data_service.team_name_for_id(row.get("opponent_team_id")),
                 "value": float(row.get(stat_column) or 0.0),
-                "mins": float(row.get("minutes") or 0.0),
+                "mins": round(float(row.get("minutes") or 0.0), 2),
             }
         )
     return rows

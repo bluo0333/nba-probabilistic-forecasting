@@ -604,7 +604,9 @@ function PlayerPropsSection() {
                       <span className="game-log-opp">vs {g.opponent}</span>
                     </div>
                     <div className="game-log-right">
-                      <span className="game-log-mins">{g.mins} min</span>
+                      <span className="game-log-mins">
+                        {Number(g.mins).toFixed(2).replace(/\.?0+$/, "")} min
+                      </span>
                       <span
                         className={`game-log-val${isOver ? " over" : isUnder ? " under" : isPush ? " push" : ""}`}
                       >
