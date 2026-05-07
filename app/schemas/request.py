@@ -15,3 +15,6 @@ class PlayerPropPredictRequest(BaseModel):
     side: str = Field(min_length=1)
     line: float
     odds: float
+    expected_minutes: float | None = Field(default=None, ge=0, le=60)
+    usage_adjustment_pct: float | None = Field(default=None, ge=-50, le=50)
+    playoff_mode: bool = Field(default=False)

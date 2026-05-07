@@ -25,6 +25,12 @@ class PlayerPropPredictResponse(BaseModel):
     implied_probability: float
     edge: float
     mean_source: str
+    base_predicted_mean: float | None = None
+    context_adjustment: float | None = None
+    expected_minutes: float | None = None
+    baseline_minutes: float | None = None
+    usage_adjustment_pct: float | None = None
+    playoff_mode: bool = False
 
 
 class PlayerRecentGameResponse(BaseModel):

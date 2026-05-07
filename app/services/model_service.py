@@ -243,6 +243,9 @@ def predict_player_prop(
     side: str,
     line: float,
     odds: float,
+    expected_minutes: float | None = None,
+    usage_adjustment_pct: float | None = None,
+    playoff_mode: bool = False,
 ) -> dict[str, Any]:
     context = _load_player_prop_context()
     prop_type_norm = str(prop_type).strip().lower()
@@ -300,6 +303,53 @@ def predict_player_prop(
             "Could not compute this player prop yet. Missing player feature/stat data."
         )
 
+    base_predicted_mean = float(predicted_mean)
+    context_factors: list[str] = []
+    baseline_minutes: float | None = None
+
+    if features_df is not None:
+        latest_row = feature_utils.latest_feature_row(features_df, player_norm)
+        if latest_row is not None and "rolling_minutes_10" in latest_row:
+            minutes_value = latest_row.get("rolling_minutes_10")
+            if minutes_value is not None and not pd.isna(minutes_value):
+                baseline_minutes = float(minutes_value)
+
+    if baseline_minutes is None and stats_df is not None:
+        player_games = stats_df[stats_df["player_name_norm"] == player_norm].copy()
+        if not player_games.empty and "minutes" in player_games.columns:
+            recent_minutes = (
+                pd.to_numeric(player_games.sort_values("date")["minutes"], errors="coerce")
+                .dropna()
+                .tail(10)
+            )
+            if len(recent_minutes) > 0:
+                baseline_minutes = float(recent_minutes.mean())
+
+    if (
+        expected_minutes is not None
+        and math.isfinite(expected_minutes)
+        and expected_minutes > 0
+        and baseline_minutes is not None
+        and math.isfinite(baseline_minutes)
+        and baseline_minutes > 0
+    ):
+        minutes_factor = max(0.6, min(1.5, expected_minutes / baseline_minutes))
+        predicted_mean *= minutes_factor
+        context_factors.append(
+            f"minutes {expected_minutes:.1f}/{baseline_minutes:.1f}"
+        )
+
+    if usage_adjustment_pct is not None and math.isfinite(usage_adjustment_pct):
+        usage_factor = max(0.5, min(1.5, 1.0 + usage_adjustment_pct / 100.0))
+        predicted_mean *= usage_factor
+        if usage_adjustment_pct:
+            context_factors.append(f"role {usage_adjustment_pct:+.0f}%")
+
+    if playoff_mode:
+        playoff_factor = {"points": 1.04, "rebounds": 1.03, "3ps": 1.02}[prop_type_norm]
+        predicted_mean *= playoff_factor
+        context_factors.append("playoff")
+
     std_dev: float | None = None
     if player_series is not None and len(player_series) >= 2:
         std_dev = float(player_series.std(ddof=1))
@@ -327,6 +377,8 @@ def predict_player_prop(
     implied_probability = float(feature_utils.american_to_implied_probability(odds))
     edge = hit_probability - implied_probability
 
+    context_adjustment = predicted_mean - base_predicted_mean
+
     return {
         "player": canonical_name,
         "line_type": prop_type_norm,
@@ -339,5 +391,15 @@ def predict_player_prop(
         "hit_probability": hit_probability,
         "implied_probability": implied_probability,
         "edge": edge,
-        "mean_source": mean_source or "fallback",
+        "mean_source": (
+            f"{mean_source or 'fallback'} + context"
+            if context_factors
+            else mean_source or "fallback"
+        ),
+        "base_predicted_mean": base_predicted_mean,
+        "context_adjustment": context_adjustment,
+        "expected_minutes": expected_minutes,
+        "baseline_minutes": baseline_minutes,
+        "usage_adjustment_pct": usage_adjustment_pct,
+        "playoff_mode": playoff_mode,
     }

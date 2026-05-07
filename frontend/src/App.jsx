@@ -117,6 +117,9 @@ function PlayerPropsSection() {
   const [side, setSide] = useState("over");
   const [line, setLine] = useState("");
   const [odds, setOdds] = useState("");
+  const [expectedMinutes, setExpectedMinutes] = useState("");
+  const [usageAdjustmentPct, setUsageAdjustmentPct] = useState("");
+  const [playoffMode, setPlayoffMode] = useState(false);
 
   // Results
   const [result, setResult] = useState(null);
@@ -246,8 +249,18 @@ function PlayerPropsSection() {
     if (!playerName) { setError("Enter a player name."); return; }
     const lineNum = parseFloat(line);
     const oddsNum = parseFloat(odds);
+    const expectedMinutesNum = expectedMinutes === "" ? null : parseFloat(expectedMinutes);
+    const usageAdjustmentNum = usageAdjustmentPct === "" ? null : parseFloat(usageAdjustmentPct);
     if (isNaN(lineNum) || lineNum <= 0) { setError("Enter a valid line (e.g. 24.5)."); return; }
     if (isNaN(oddsNum)) { setError("Enter valid American odds (e.g. -110 or +120)."); return; }
+    if (expectedMinutesNum !== null && (isNaN(expectedMinutesNum) || expectedMinutesNum <= 0 || expectedMinutesNum > 60)) {
+      setError("Expected minutes must be between 1 and 60.");
+      return;
+    }
+    if (usageAdjustmentNum !== null && (isNaN(usageAdjustmentNum) || usageAdjustmentNum < -50 || usageAdjustmentNum > 50)) {
+      setError("Role adjustment must be between -50% and +50%.");
+      return;
+    }
 
     setLoadingResult(true);
     try {
@@ -260,6 +273,9 @@ function PlayerPropsSection() {
           side,
           line: lineNum,
           odds: oddsNum,
+          expected_minutes: expectedMinutesNum,
+          usage_adjustment_pct: usageAdjustmentNum,
+          playoff_mode: playoffMode,
         }),
       });
       const data = await resp.json();
@@ -399,6 +415,49 @@ function PlayerPropsSection() {
             </div>
           </div>
 
+          <div className="context-panel">
+            <div className="context-panel-head">
+              <span>Context</span>
+              <span>Optional</span>
+            </div>
+            <div className="form-row-2">
+              <div className="form-group">
+                <label className="form-label">Expected Minutes</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="60"
+                  placeholder="36"
+                  value={expectedMinutes}
+                  onChange={(e) => setExpectedMinutes(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Role Adj %</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  step="1"
+                  min="-50"
+                  max="50"
+                  placeholder="+8"
+                  value={usageAdjustmentPct}
+                  onChange={(e) => setUsageAdjustmentPct(e.target.value)}
+                />
+              </div>
+            </div>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={playoffMode}
+                onChange={(e) => setPlayoffMode(e.target.checked)}
+              />
+              <span>Playoff/high-leverage role</span>
+            </label>
+          </div>
+
           {error && <p className="error-msg">{error}</p>}
 
           <button
@@ -456,6 +515,27 @@ function PlayerPropsSection() {
                   </span>
                 </div>
               </div>
+
+              {(result.context_adjustment || result.expected_minutes || result.usage_adjustment_pct || result.playoff_mode) && (
+                <div className="context-summary">
+                  <span>
+                    Base {result.base_predicted_mean?.toFixed(1) ?? result.predicted_mean.toFixed(1)}
+                  </span>
+                  <span>
+                    Adj {result.context_adjustment >= 0 ? "+" : ""}
+                    {(result.context_adjustment || 0).toFixed(1)}
+                  </span>
+                  {result.expected_minutes && result.baseline_minutes && (
+                    <span>
+                      Min {result.expected_minutes.toFixed(1)} vs {result.baseline_minutes.toFixed(1)}
+                    </span>
+                  )}
+                  {result.usage_adjustment_pct ? (
+                    <span>Role {result.usage_adjustment_pct > 0 ? "+" : ""}{result.usage_adjustment_pct.toFixed(0)}%</span>
+                  ) : null}
+                  {result.playoff_mode && <span>Playoff</span>}
+                </div>
+              )}
 
               {/* Probability bar */}
               <div className="prop-bar-wrap">

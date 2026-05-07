@@ -64,6 +64,9 @@ def predict_player_prop(payload: PlayerPropPredictRequest) -> PlayerPropPredictR
             side=payload.side,
             line=payload.line,
             odds=payload.odds,
+            expected_minutes=payload.expected_minutes,
+            usage_adjustment_pct=payload.usage_adjustment_pct,
+            playoff_mode=payload.playoff_mode,
         )
         return PlayerPropPredictResponse(**result)
     except ValueError as exc:

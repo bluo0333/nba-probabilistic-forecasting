@@ -737,6 +737,50 @@ input {
   gap: 10px;
 }
 
+.context-panel {
+  margin: 4px 0 14px;
+  padding: 12px;
+  background: rgba(10, 14, 26, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+.context-panel .form-group {
+  margin-bottom: 0;
+}
+
+.context-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+.context-panel-head span:first-child {
+  color: #9ca3af;
+}
+
+.toggle-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.toggle-row input {
+  width: 15px;
+  height: 15px;
+  accent-color: #f97316;
+}
+
 /* -- Pill buttons (stat / side toggle) --------------------- */
 
 .pill-row {
@@ -936,6 +980,21 @@ input {
 
 .prop-stat-value.hit {
   color: #f97316;
+}
+
+.context-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.context-summary span {
+  padding: 4px 7px;
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.16);
+  border-radius: 5px;
+  font-size: 11px;
+  color: #fdba74;
 }
 
 .prop-bar-wrap {
