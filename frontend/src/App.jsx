@@ -56,6 +56,25 @@ function getInitials(teamName) {
   return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
 }
 
+function resolvePlayerName(players, query, selectedPlayer = "") {
+  if (selectedPlayer) return selectedPlayer;
+
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return "";
+
+  return (
+    players.find((player) => player.toLowerCase() === normalizedQuery) ||
+    players.find((player) =>
+      player
+        .toLowerCase()
+        .split(/\s+/)
+        .some((part) => part === normalizedQuery)
+    ) ||
+    players.find((player) => player.toLowerCase().includes(normalizedQuery)) ||
+    ""
+  );
+}
+
 function Spinner({ size = 18 }) {
   return (
     <span
@@ -150,10 +169,7 @@ function PlayerPropsSection() {
       return;
     }
 
-    const exactMatch = players.find(
-      (player) => player.toLowerCase() === playerQuery.trim().toLowerCase()
-    );
-    setSelectedPlayer(exactMatch || "");
+    setSelectedPlayer(resolvePlayerName(players, playerQuery));
   }, [players, playerQuery]);
 
   // Close dropdown on outside click
@@ -174,10 +190,7 @@ function PlayerPropsSection() {
   }, [players, playerQuery]);
 
   const resolvedPlayer = useMemo(() => {
-    if (selectedPlayer) return selectedPlayer;
-    const query = playerQuery.trim().toLowerCase();
-    if (!query) return "";
-    return players.find((player) => player.toLowerCase() === query) || "";
+    return resolvePlayerName(players, playerQuery, selectedPlayer);
   }, [playerQuery, players, selectedPlayer]);
 
   const handleSelectPlayer = async (name) => {
