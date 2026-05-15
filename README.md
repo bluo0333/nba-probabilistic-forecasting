@@ -1,98 +1,72 @@
 # NBA Probabilistic Forecasting Platform
 
-Full-stack NBA prediction platform with live API and UI.
+Full-stack NBA analytics app for matchup win probabilities and player prop edge detection.
 
-**Live Frontend URL:**  
-https://hoopsedge.onrender.com
-
-**API Docs URL:**  
-https://nba-probabilistic-forecasting.onrender.com/docs
-
----
-
-## Live Demo
-
-- Frontend: https://hoopsedge.onrender.com
-- API Docs (Swagger): https://nba-probabilistic-forecasting.onrender.com/docs
-- Base API: https://nba-probabilistic-forecasting.onrender.com
-
-## Features
-
-- Matchup win-probability predictions
-- Player prop probability scoring
-- FastAPI backend with interactive Swagger docs
-- React UI for team selection and live predictions
-- Lightweight inference runtime using CSV features + serialized models
-
-## Tech Stack
-
-- Python 3 + FastAPI
-- scikit-learn + joblib
-- pandas + numpy + scipy
-- React + Vite
-- Render (frontend + API deployment)
-
-## Architecture Overview
-
-- `app/main.py`: app assembly only
-- `app/api/routes/*`: HTTP layer
-- `app/services/*`: business logic and inference
-- `app/schemas/*`: request/response contracts
-- `app/core/config.py`: runtime config and paths
-- `app/utils/*`: shared helper utilities
-
----
+**Live frontend:** https://hoopsedge.onrender.com  
+**API docs:** https://nba-probabilistic-forecasting.onrender.com/docs  
+**Base API:** https://nba-probabilistic-forecasting.onrender.com
 
 ## Overview
 
-Full-stack sports analytics platform for predicting NBA game outcomes and player props using historical data, engineered features, and machine learning models.
+This project combines a FastAPI prediction API, a React/Vite frontend, and offline data/model pipelines for NBA forecasting.
 
-The system includes:
+The frontend currently supports two workflows:
 
-- a FastAPI backend serving real-time predictions via a REST API
-- a React frontend for interactive matchup analysis
-- an offline data pipeline for ingestion, feature engineering, and model training
+- **Matchup Predictor:** select home and away teams, then view model-generated win probabilities and predicted winner.
+- **Player Prop Analyzer:** search players, choose points/rebounds/3PM, enter a line and American odds, then compare model hit probability against implied probability.
 
-The project is designed with production-style architecture, separating data pipelines, model inference, and API layers into modular components.
-
-## Built with a production-style architecture and deployed-ready API design to simulate real-world backend systems.
+The API serves predictions from processed CSV artifacts and serialized scikit-learn/joblib models. Offline pipelines ingest data, build serving features, and train the matchup and player prop models.
 
 ## Demo
 
-### API (Swagger UI)
+### Matchup Predictor
 
-![Swagger UI](assets/swagger.png)
+![Matchup predictor](assets/matchupdemo.png)
 
-### Main Interface
+### Player Prop Analyzer
 
-Interactive frontend for selecting matchups and viewing model predictions.
+![Player prop analyzer](assets/playerpropdemo.png)
 
-![Main UI](assets/main.png)
+### API Docs
 
-### Team Selection UI
+![Swagger API docs](assets/swagger.png)
 
-![Team Selector](assets/team-selector.png)
+## Features
 
----
+- Matchup win-probability predictions.
+- Searchable team selector with NBA logos and fallback initials.
+- Player prop probability scoring for:
+  - points
+  - rebounds
+  - made threes (`3ps`)
+- Over/under edge calculation using American odds implied probability.
+- Optional player context adjustments:
+  - expected minutes
+  - role/usage adjustment percentage
+  - playoff/high-leverage mode
+- Recent game log endpoint and mini chart for selected player props.
+- FastAPI Swagger documentation.
+- Modular service, schema, route, and pipeline layers.
 
 ## Tech Stack
 
 - Python 3
 - FastAPI
-- scikit-learn (joblib)
-- pandas + numpy + scipy
-- React + Vite
-- Render
+- pandas, numpy, scipy
+- scikit-learn, joblib
+- DuckDB
+- React 18 + Vite
+- Render deployment
 
 ## Architecture
 
 ```text
                 +----------------------+
                 |   React Frontend     |
-                |   (Vite, fetch API)  |
+                |   frontend/src       |
                 +----------+-----------+
                            |
-                           | HTTP (JSON)
+                           | HTTP JSON
                            v
                 +----------+-----------+
                 |      FastAPI App     |
@@ -117,52 +91,71 @@ Interactive frontend for selecting matchups and viewing model predictions.
            |
            v
 +----------+----------+      +-------------------------+
-| Processed CSV data  |      | Models (models/*.pkl)   |
-| data/*.csv          |      | sklearn/joblib artifacts|
+| Runtime CSV data    |      | Model artifacts         |
+| data/*.csv          |      | models/*.pkl            |
 +---------------------+      +-------------------------+
 
-Pipelines (pipelines/*.py) build runtime CSV/model artifacts offline.
+Offline pipelines in pipelines/*.py and sql/*.sql build the CSV/model artifacts.
 ```
 
-## Features
+## API Endpoints
 
-- Matchup probability API:
-  - `POST /predict/matchup`
-  - `GET /predict/quick?home=...&away=...`
-- Teams API:
-  - `GET /teams/`
-- Player props API:
-  - `GET /props/players`
-  - `POST /props/predict`
-- Historical ingestion and feature pipelines:
-  - `pipelines/ingest.py`
-  - `pipelines/build_features.py`
-  - `pipelines/train.py`
-- Player workflow pipelines:
-  - `pipelines/ingest_balldontlie.py`
-  - `pipelines/ingest_nba_api.py` (free NBA.com/stats path via `nba_api`)
-  - `pipelines/build_player_features.py`
-  - `pipelines/train_player_model.py`
-  - `pipelines/predict_player_props.py`
-- Play-by-play aggregation:
-  - `pipelines/build_player_game_stats.py`
+```text
+GET  /
+GET  /health
+GET  /teams/
+GET  /predict/quick?home=...&away=...
+POST /predict/matchup
+GET  /props/players
+GET  /props/recent-games?player=...&line_type=points&limit=10
+POST /props/predict
+```
 
-## Current Status
+Example player prop request:
 
-- Game outcome prediction: fully deployed
-- Player prop prediction: in progress (pipeline exists but not deployed due to data scaling constraints)
+```json
+{
+  "player": "Jayson Tatum",
+  "line_type": "points",
+  "side": "over",
+  "line": 27.5,
+  "odds": -110,
+  "expected_minutes": 38,
+  "usage_adjustment_pct": 5,
+  "playoff_mode": false
+}
+```
 
-## Model Performance
+## Project Structure
 
-Current out-of-sample game model performance (2018-2023):
+```text
+app/
+  api/routes/        FastAPI route handlers
+  core/config.py     Runtime paths and settings
+  schemas/           Request/response models
+  services/          Prediction and data-loading logic
+  utils/             Shared feature helpers
+frontend/
+  src/App.jsx        Main React application
+  src/App.css        Frontend styling
+pipelines/           Data ingestion, feature building, and training scripts
+sql/                 DuckDB feature SQL
+data/                Runtime CSV artifacts
+models/              Serialized model artifacts
+assets/              README/demo images
+```
 
-- Log Loss: `0.633`
-- Brier Score: `0.221`
-- Accuracy: `64.4%`
+## Local Setup
 
-Baseline (always pick home team): `56.5%` accuracy.
+Create and activate a Python environment, then install backend dependencies:
 
-## Setup
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+On Windows PowerShell:
 
 ```powershell
 python -m venv .venv
@@ -170,50 +163,100 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## Run Backend
+Install frontend dependencies:
 
-```powershell
-uvicorn app.main:app --host 0.0.0.0 --port 10000
+```bash
+cd frontend
+npm install
+cp .env.example .env
 ```
 
-## Run Frontend
+For Windows PowerShell:
 
 ```powershell
 cd frontend
-copy .env.example .env
 npm install
-npm run dev
+copy .env.example .env
 ```
 
-Frontend environment variable:
+The frontend expects this environment variable:
 
 ```env
 VITE_API_BASE=http://localhost:8000
 ```
 
-## API Endpoints
+## Run Locally
 
-```text
-GET  /health
-GET  /teams/
-GET  /predict/quick?home=...&away=...
-POST /predict/matchup
-GET  /props/players
-POST /props/predict
+Start the API:
+
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## Build Player Prop Artifacts
+Start the frontend in another terminal:
 
-The free path uses NBA.com/stats through the `nba_api` package:
+```bash
+cd frontend
+npm run dev
+```
+
+Open the Vite URL shown in the terminal. Swagger docs are available at:
+
+```text
+http://localhost:8000/docs
+```
+
+## Build Frontend
+
+```bash
+cd frontend
+npm run build
+```
+
+## Data and Model Pipelines
+
+Matchup workflow:
+
+```bash
+python pipelines/ingest.py
+python pipelines/build_features.py
+python pipelines/train.py
+python pipelines/build_serving_data.py
+```
+
+Player prop workflow using NBA.com/stats through `nba_api`:
 
 ```bash
 python pipelines/ingest_nba_api.py
+python pipelines/build_player_game_stats.py
 python pipelines/build_player_features.py
 python pipelines/train_player_model.py
 ```
 
-You can fetch explicit seasons with repeated `--season` flags:
+Fetch explicit seasons with repeated `--season` flags:
 
 ```bash
 python pipelines/ingest_nba_api.py --season 2023-24 --season 2024-25 --season 2025-26
 ```
+
+DuckDB-based player feature build:
+
+```bash
+python pipelines/build_player_features_duckdb.py
+```
+
+## Model Performance
+
+Current out-of-sample matchup model performance from the existing README benchmark:
+
+- Log Loss: `0.633`
+- Brier Score: `0.221`
+- Accuracy: `64.4%`
+
+Baseline accuracy from always picking the home team: `56.5%`.
+
+## Notes
+
+- `data/` and `models/` artifacts are required for local inference.
+- The first request to the hosted API may be slower while the Render service wakes up.
+- Player prop predictions fall back from trained prop models to rolling/recent averages when model artifacts or feature columns are unavailable.
